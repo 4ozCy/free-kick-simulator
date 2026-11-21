@@ -104,3 +104,31 @@ test('streak multiplier climbs to x5; near-miss gap is measured from the frame',
   assert.ok(Math.abs(gap(0, Sim.GH + 0.5) - (0.5 - Sim.R - Sim.PR)) < 1e-9);
   assert.equal(Sim.missBy({ ev: {} }), null);
 });
+
+test('skill ladder: XP thresholds map to ranks; goals earn more XP for stars, streaks and distance', () => {
+  assert.deepEqual([0, 79, 80, 450, 1999, 2000, 99999].map(Sim.rankOf), [0, 0, 1, 3, 5, 6, 6]);
+  assert.ok(Sim.xpFor(3, 0, 18) > Sim.xpFor(1, 0, 18));
+  assert.ok(Sim.xpFor(1, 4, 18) > Sim.xpFor(1, 0, 18));
+  assert.ok(Sim.xpFor(1, 0, 30) > Sim.xpFor(1, 0, 18));
+});
+
+test('perks: CANNON adds 10% top speed, WHIP MASTER bends it further', () => {
+  const s = { style: 1, power: 1 };
+  assert.ok(Math.abs(Sim.speed({ ...s, pw: 0.1 }) - Sim.speed(s) - 0.1 * Sim.STYLES[1].vMax) < 1e-9);
+  const c = { style: 1, aim: 0, power: 0.6, u: 0.7, v: 0 };
+  assert.ok(endX({ ...c, cv: 0.2 }) < endX(c) - 0.3);
+});
+
+test('keeper is beatable in the corners but still saves shots hit near him', () => {
+  let farS = 0, farN = 0, nearS = 0, nearN = 0, seed = 1;
+  for (const L of [2, 8]) for (let st = 0; st < 4; st++) for (let a = -1; a <= 1.001; a += 0.2) for (const p of [0.4, 0.7, 1]) for (const v of [-0.8, -0.4, 0]) {
+    const shot = { style: st, aim: a, power: p, u: 0.6 * Math.sign(a), v }, sd = seed++;
+    const free = Sim.newWorld(L, sd); free.keeper.z = 50; Sim.kick(free, shot);
+    for (let i = 0; i < 1440 && !free.result; i++) Sim.step(free, 1 / 240);
+    if (free.result !== 'goal') continue; // only shots that were going in
+    const w = fly(L, shot, sd), dx = Math.abs(free.ev.goal.x - w.keeper.px);
+    if (dx > 2.4) { farN++; if (w.result !== 'goal') farS++; } else if (dx < 1.2) { nearN++; if (w.result !== 'goal') nearS++; }
+  }
+  assert.ok(farN > 10 && farS / farN < 0.35, `corner shots saved ${farS}/${farN}`);
+  assert.ok(nearN > 10 && nearS / nearN > 0.5, `near shots saved ${nearS}/${nearN}`);
+});

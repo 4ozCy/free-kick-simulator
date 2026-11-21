@@ -42,7 +42,8 @@
     const wa = n * 2.39996 + 1; // golden-angle steps: wind direction varies per level but repeats on retry
     return {
       n, dist: d, ang: a, wallN: wn, windSpeed: ws, targets: !!tg, wind: { x: Math.cos(wa) * ws, z: Math.sin(wa) * ws },
-      react: Math.max(0.22, 0.38 - n * 0.013), kspeed: Math.min(5.6, 4.0 + n * 0.12), read: Math.min(0.9, 0.5 + n * 0.035),
+      react: Math.max(0.34, 0.48 - n * 0.012), kspeed: Math.min(4.2, 3.2 + n * 0.08), read: Math.min(0.65, 0.3 + n * 0.03),
+      reach: Math.min(2.6, 2.1 + n * 0.04), // one dive covers this far sideways from where he stood, no further
     };
   }
 
@@ -69,11 +70,12 @@
   }
 
   // shot: { style: 0-3, aim: -1..1, power: 0..1, u: -1..1 (strike point, right +), v: -1..1 (up +),
-  //         mega: top power 1000 km/h, insane: 4x sidespin, assist: ball homes into the net }
+  //         mega: top power 1000 km/h, insane: 4x sidespin, assist: ball homes into the net,
+  //         pw / cv: skill-perk bonuses to top speed / sidespin, e.g. 0.1 = +10% }
   const MEGA_V = 1000 / 3.6;
-  const speedOf = (shot) => { const st = STYLES[shot.style]; return st.vMin + ((shot.mega ? MEGA_V : st.vMax) - st.vMin) * shot.power; };
+  const speedOf = (shot) => { const st = STYLES[shot.style]; return st.vMin + ((shot.mega ? MEGA_V : st.vMax * (1 + (shot.pw || 0))) - st.vMin) * shot.power; };
   function launch(w, shot, b) {
-    const st = STYLES[shot.style], speed = speedOf(shot), cm = shot.insane ? 4 : 1;
+    const st = STYLES[shot.style], speed = speedOf(shot), cm = (shot.insane ? 4 : 1) * (1 + (shot.cv || 0));
     const yaw = w.yaw0 + shot.aim * (shot.insane ? 0.8 : 0.35) + st.spin * shot.u * 0.05 * cm; // off-centre contact starts it on the outside of the bend
     // harder strikes launch flatter: no change up to 34 m/s, keeps 1000 km/h shots inside the stadium
     const el = clamp(st.elev - shot.v * st.loft, 1, 30) * DEG * Math.min(1, 34 / speed), side = -shot.u * st.spin * cm, top = st.top0 + shot.v * st.top;
@@ -158,12 +160,14 @@
     const k = w.keeper, L = w.L, b = w.ball, t = w.ft;
     k.cool -= dt;
     if (k.state === 'idle') k.state = 'ready';
-    if (k.state === 'ready' && t >= L.react) {
+    // the wall hides the strike: he only reads the ball once it's past the wall line
+    if (w.seen === undefined && (b.x - w.start.x) * Math.sin(w.yaw0) + (b.z - w.start.z) * Math.cos(w.yaw0) > WALL_D + 0.3) w.seen = t;
+    if (k.state === 'ready' && t >= L.react && w.seen !== undefined && t >= w.seen + 0.12) {
       const p = predict(w, k.z);
       if (!p || Math.abs(p.x) > HW + 0.7 || p.y > GH + 0.6) k.state = 'watch';
       else {
         const err = 1 - L.read;
-        k.tx = p.x + (w.rng() - 0.5) * err * 1.6;
+        k.tx = clamp(p.x + (w.rng() - 0.5) * err * 1.6, k.x - L.reach, k.x + L.reach);
         k.ty = clamp(p.y + (w.rng() - 0.5) * err * 0.6, 0.15, 2.45);
         k.tArr = p.t;
         const dx = k.tx - k.x;
@@ -309,7 +313,20 @@
   const multiplier = (streak) => Math.min(5, 1 + streak); // points multiplier for the next goal
   const missBy = (w) => (w.ev.out ? Math.max(0, Math.max(Math.abs(w.ev.out.x) - HW, w.ev.out.y - GH) - R - PR) : null); // gap between ball and frame, m
 
-  const Sim = { stars, multiplier, missBy, STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview, speed: speedOf };
+  // skill ladder: XP from goals moves the taker up; every rank adds a perk and keeps the earlier ones
+  const RANKS = [
+    { name: 'BEGINNER', xp: 0, perk: 'SCORE GOALS TO EARN XP' },
+    { name: 'AMATEUR', xp: 80, perk: 'LONG GUIDE: LONGER AIM ARC' },
+    { name: 'SEMI-PRO', xp: 220, perk: 'EXTRA BALL: 4 PER LEVEL' },
+    { name: 'PRO', xp: 450, perk: 'WHIP MASTER: +20% CURVE' },
+    { name: 'WORLD CLASS', xp: 800, perk: 'CANNON: +10% SHOT POWER' },
+    { name: 'ELITE', xp: 1300, perk: 'MIND GAMES: KEEPER READS YOU LATE' },
+    { name: 'LEGEND', xp: 2000, perk: 'FULL GUIDE: SEE THE WHOLE FLIGHT' },
+  ];
+  const rankOf = (xp) => { let r = 0; while (r + 1 < RANKS.length && xp >= RANKS[r + 1].xp) r++; return r; };
+  const xpFor = (nStars, streak, dist) => 10 + 10 * nStars + 5 * Math.min(streak, 5) + Math.max(0, Math.round(dist - 18));
+
+  const Sim = { RANKS, rankOf, xpFor, stars, multiplier, missBy, STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview, speed: speedOf };
   if (typeof module !== 'undefined' && module.exports) { module.exports = Sim; return; }
 
   // =================================================================== BROWSER
@@ -448,13 +465,19 @@
     if (fy >= 0.6 && fy < 0.85 && fx > 0.3 && fx < 0.7) return SKINC[(h >>> 8) & 3];
     return SEAT[row & 1];
   }
-  function bakeStand(f) {
-    const t = new Uint32Array(TEX_W * TEX_H);
-    for (let y = 0; y < TEX_H; y++) for (let x = 0; x < TEX_W; x++) t[y * TEX_W + x] = standPx((x + 0.5) / TPM - 80, (y + 0.5) / TPM, f);
-    return t;
-  }
-  const STAND = [bakeStand(0)]; // cheering frames are baked one at a time after launch so start-up stays quick
-  setTimeout(function more() { if (STAND.length < 4) { STAND.push(bakeStand(STAND.length)); setTimeout(more, 200); } }, 1500);
+  function bakeRows(t, f, y0, y1) { for (let y = y0; y < y1; y++) for (let x = 0; x < TEX_W; x++) t[y * TEX_W + x] = standPx((x + 0.5) / TPM - 80, (y + 0.5) / TPM, f); }
+  const STAND = [new Uint32Array(TEX_W * TEX_H)];
+  bakeRows(STAND[0], 0, 0, TEX_H);
+  // cheering frames: a dozen rows per tick after launch, so baking never stalls a frame on slow phones
+  let bakeT = null, bakeY = 0;
+  setTimeout(function more() {
+    if (STAND.length > 3) return;
+    if (!bakeT) bakeT = new Uint32Array(TEX_W * TEX_H);
+    bakeRows(bakeT, STAND.length, bakeY, Math.min(TEX_H, bakeY + 12));
+    bakeY += 12;
+    if (bakeY >= TEX_H) { STAND.push(bakeT); bakeT = null; bakeY = 0; }
+    setTimeout(more, 40);
+  }, 1500);
   const SKYBUF = new Uint32Array(W * H);
   for (let i = 0; i < W * H; i++) SKYBUF[i] = hash(i % W, (i / W) | 0) % 397 === 0 && i < W * 150 ? STAR : SKY[(i / W) | 0];
   function renderBG() {
@@ -761,31 +784,37 @@
   let spot = null, seed = 1, moving = false; // player-chosen kick spot for the current level
   const CHIPS = [['MOVE', 'move'], ['1000KM/H', 'mega'], ['MEGA CURVE', 'insane'], ['AIM ASSIST', 'assist']], CHIP_Y = 32;
   // saved progress: best score, furthest level, best stars per level, chosen ball. Anything unreadable starts fresh.
-  let far = 0, starsBy = {}, skin = 0, streak = 0, runCheat = false, cheatKick = false;
+  let far = 0, starsBy = {}, skin = 0, streak = 0, runCheat = false, cheatKick = false, xp = 0, runXp = 0;
   let shake = 0, timeScale = 1, trail = [], confetti = [];
   try {
     const d = JSON.parse(localStorage.getItem('rfk-save') || 'null');
     if (d && typeof d === 'object') {
-      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
+      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); xp = Math.max(0, d.xp | 0); skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
       if (d.stars && typeof d.stars === 'object') for (const k in d.stars) starsBy[k] = clamp(d.stars[k] | 0, 0, 3);
     } else best = +localStorage.getItem('rfk-best') || 0; // pre-progression saves kept only the best score
   } catch (_) {}
-  const persist = () => { try { localStorage.setItem('rfk-save', JSON.stringify({ best, far, stars: starsBy, skin })); } catch (_) {} };
+  const persist = () => { try { localStorage.setItem('rfk-save', JSON.stringify({ best, far, stars: starsBy, skin, xp })); } catch (_) {} };
   const totalStars = () => Object.keys(starsBy).reduce((a, k) => a + starsBy[k], 0);
   const unlocked = (i) => totalStars() >= BALL_SKINS[i].need;
   if (!unlocked(skin)) skin = 0;
+  const rank = () => Sim.rankOf(xp), maxLives = () => (rank() >= 2 ? 4 : 3);
+  function applyPerks() { shot.cv = rank() >= 3 ? 0.2 : 0; shot.pw = rank() >= 4 ? 0.1 : 0; }
+  function makeWorld() {
+    world = Sim.newWorld(level, seed, spot);
+    if (rank() >= 5) { world.L.read = Math.max(0.1, world.L.read - 0.15); world.L.react += 0.05; } // MIND GAMES
+  }
   const showMsg = (big, sub, col, dur = 2.6, sc = 5, st = -1, extra = '') => (msg = { t: 0, big, sub, col, dur, sc, st, extra });
   const sideName = () => (world.L.ang < -5 ? 'LEFT' : world.L.ang > 5 ? 'RIGHT' : 'CENTRE');
 
   function setupLevel() {
     seed = (Math.random() * 2147483647) | 0; moving = false;
-    world = Sim.newWorld(level, seed, spot);
+    makeWorld();
     makeDefenders(); frameCam(); nd.fill(0); nv.fill(0);
     state = 'aim'; levelT = 0; stateT = 0; acc = 0; whistled = false; ptr = null; trail = [];
     showMsg('LEVEL ' + (level + 1), Math.round(world.L.dist) + 'M ' + sideName() + ' - ' + world.L.wallN + ' IN WALL', '#ffffff', 1.8, 4, starsBy[level] || 0);
   }
-  function startGame(n) { level = n; lives = 3; score = 0; streak = 0; runCheat = false; spot = null; setupLevel(); }
-  function placeBall(dist, ang) { spot = { dist, ang }; world = Sim.newWorld(level, seed, spot); frameCam(); }
+  function startGame(n) { level = n; lives = maxLives(); score = 0; streak = 0; runCheat = false; runXp = 0; spot = null; applyPerks(); setupLevel(); }
+  function placeBall(dist, ang) { spot = { dist, ang }; makeWorld(); frameCam(); }
   function pickStyle(i) { shot.style = i; shot.u = STYLES[i].u; shot.v = STYLES[i].v; hint = { t: 0, s: STYLES[i].name + ': ' + STYLES[i].desc }; }
   function doKick() {
     if (state !== 'aim') return;
@@ -803,14 +832,18 @@
         score += base; runCheat = true;
         return showMsg('GOAL!', how + '+' + base, '#ffe040', 2.6, 5, -1, 'CHEATS ON - NO STARS');
       }
-      const m = Sim.multiplier(streak), pts = base * m, n = Sim.stars(world, lives === 3), before = totalStars();
-      score += pts; streak++;
+      const m = Sim.multiplier(streak), pts = base * m, n = Sim.stars(world, lives === maxLives()), before = totalStars();
+      const gain = Sim.xpFor(n, streak, world.L.dist), r0 = rank();
+      score += pts; streak++; xp += gain; runXp += gain;
+      const up = rank() > r0 ? Sim.RANKS[rank()] : null;
+      if (up) { applyPerks(); setTimeout(() => sfx('stars3'), 1200); }
       if (score > best && !runCheat) best = score;
       if (n > (starsBy[level] || 0)) starsBy[level] = n;
       const fresh = BALL_SKINS.find((k) => k.need > before && k.need <= totalStars());
       persist();
       setTimeout(() => sfx('stars' + n), 350);
-      showMsg('GOAL!', how + '+' + pts + (m > 1 ? ' (X' + m + ')' : ''), '#ffe040', 2.8, 5, n, fresh ? 'NEW BALL UNLOCKED: ' + fresh.name : streak >= 3 ? 'ON FIRE! ' + streak + ' IN A ROW' : '');
+      showMsg('GOAL!', how + '+' + pts + (m > 1 ? ' (X' + m + ')' : '') + '  +' + gain + 'XP', '#ffe040', up ? 3.4 : 2.8, 5, n,
+        up ? 'RANK UP: ' + up.name + '! ' + up.perk : fresh ? 'NEW BALL UNLOCKED: ' + fresh.name : streak >= 3 ? 'ON FIRE! ' + streak + ' IN A ROW' : '');
     } else {
       sfx('ooh');
       const left = lives - 1, gap = Sim.missBy(world), lost = streak >= 2 ? 'STREAK OF ' + streak + ' LOST' : '';
@@ -826,7 +859,7 @@
     for (let i = 0; i < 70; i++) confetti.push({ x: Math.random() * W, y: -Math.random() * 120, vx: (Math.random() - 0.5) * 40, vy: 30 + Math.random() * 50, c: cols[i % cols.length], ph: Math.random() * 6 });
   }
   function advance() {
-    if (world.result === 'goal') { level++; lives = 3; spot = null; if (level > far) { far = level; persist(); } setupLevel(); } // 3 balls per level, refilled on every goal
+    if (world.result === 'goal') { level++; lives = maxLives(); spot = null; if (level > far) { far = level; persist(); } setupLevel(); } // 3 balls per level, refilled on every goal
     else if (--lives <= 0) { state = 'over'; stateT = 0; msg = null; }
     else setupLevel();
   }
@@ -1072,7 +1105,7 @@
     items.sort((p, q) => q[0] - p[0]).forEach((it) => it[1]());
 
     if (state === 'aim' || state === 'runup') { // dotted launch arc for the first few metres
-      const pts = Sim.preview(world, shot, 7);
+      const pts = Sim.preview(world, shot, rank() >= 6 ? world.L.dist + 3 : rank() >= 1 ? 12 : 7); // LONG / FULL GUIDE perks
       pts.forEach((q, i) => {
         const p = proj(q[0], q[1], q[2]);
         if (!p) return;
@@ -1084,6 +1117,8 @@
       ctx.globalAlpha = 1;
     }
     ctx.restore();
+    const bar = Math.round(((1 - timeScale) / 0.6) * 18); // cinema bars so slow motion reads as an effect, not lag
+    if (bar > 0) { ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, W, bar); ctx.fillRect(0, UI_Y - bar, W, bar); }
     hud();
     ui();
     overlays();
@@ -1099,7 +1134,7 @@
   function hud() {
     const L = world.L, wx = L.wind.x, wz = L.wind.z;
     const X = wx * cam.r[0] + wz * cam.r[2], Zc = wx * cam.f[0] + wz * cam.f[2], l = Math.hypot(X, Zc) || 1, dx = Math.round((X / l) * 20) / 20, dy = Math.round((-Zc / l) * 20) / 20;
-    cached(HUD_L, [L.n, L.dist, L.ang, score, best, lives, dx, dy, moving, shot.mega, shot.insane, shot.assist, streak, skin].join(), 0, 56, () => drawHud(dx, dy));
+    cached(HUD_L, [L.n, L.dist, L.ang, score, best, lives, dx, dy, moving, shot.mega, shot.insane, shot.assist, streak, skin, xp].join(), 0, 56, () => drawHud(dx, dy));
   }
   function drawHud(dx, dy) {
     CHIPS.forEach(([label, key], i) => {
@@ -1113,6 +1148,7 @@
     text('SCORE ' + score, W - 4, 4, 1, '#ffe040', 1);
     text('BEST ' + best, W - 4, 12, 1, '#a0a8c0', 1);
     for (let i = 0; i < lives; i++) ctx.drawImage(BALL.x[0], W - 11 - i * 9, 20, 7, 7);
+    text(Sim.RANKS[rank()].name, W - 4, CHIP_Y + 16, 1, '#60e0ff', 1);
     if (streak > 0) text('STREAK ' + streak + '  NEXT GOAL X' + Sim.multiplier(streak), 4, CHIP_Y + 16, 1, streak >= 3 ? '#ff8030' : '#ffe060');
     if (L.windSpeed > 0) { // arrow in screen space: up = toward the goal
       const cx = 135, cy = 22;
@@ -1170,6 +1206,14 @@
     else if (live && level < 2 && Math.floor(tnow * 1.5) & 1) text('SWIPE UP TO SHOOT', W / 2, UI_Y - 9, 1, '#ffffff', 0.5);
   }
 
+  function rankPanel(y) { // rank name, XP bar to the next rank, and the perk that comes with it
+    const r = rank(), R = Sim.RANKS, nx = R[r + 1];
+    text('RANK: ' + R[r].name, W / 2, y, 2, '#60e0ff', 0.5);
+    bevel(50, y + 14, 170, 7, '#141834', '#0a0c1c', '#3a4680');
+    ctx.fillStyle = '#40d0ff';
+    ctx.fillRect(51, y + 15, Math.round(168 * (nx ? (xp - R[r].xp) / (nx.xp - R[r].xp) : 1)), 5);
+    text(nx ? xp + '/' + nx.xp + 'XP - NEXT: ' + nx.perk : 'MAX RANK - ALL PERKS', W / 2, y + 25, 1, '#a0a8c0', 0.5);
+  }
   function overlays() {
     confetti.forEach((c) => { ctx.fillStyle = c.c; ctx.fillRect(Math.round(c.x), Math.round(c.y), 2, Math.sin(c.ph) > 0 ? 2 : 1); });
     if (msg && msg.t < msg.dur) {
@@ -1185,13 +1229,14 @@
       ctx.fillStyle = 'rgba(6,8,24,0.72)'; ctx.fillRect(0, 0, W, H);
       const btn = (label, y, h, hot) => { bevel(50, y, 170, h, hot ? '#c82828' : '#2a3264', hot ? '#ff9090' : '#4a56a0', hot ? '#801010' : '#141834'); text(label, W / 2, y + (h - 5 * (h > 20 ? 2 : 1)) / 2, h > 20 ? 2 : 1, '#ffffff', 0.5); };
       if (state === 'title') {
-        text('RETRO', W / 2, 70, 7, '#ffe040', 0.5);
-        text('FREE KICK', W / 2, 114, 4, '#ffffff', 0.5);
-        ctx.drawImage(BALL.x[Math.floor(tnow * 10) & 15], W / 2 - 24, 146, 48, 48);
-        ctx.drawImage(STAR_ON, W / 2 - 52, 210, 14, 14);
-        text(totalStars() + ' STARS   BEST ' + best, W / 2 - 34, 214, 1, '#ffe060');
+        text('RETRO', W / 2, 52, 7, '#ffe040', 0.5);
+        text('FREE KICK', W / 2, 94, 4, '#ffffff', 0.5);
+        ctx.drawImage(BALL.x[Math.floor(tnow * 10) & 15], W / 2 - 18, 122, 36, 36);
+        ctx.drawImage(STAR_ON, W / 2 - 52, 164, 14, 14);
+        text(totalStars() + ' STARS   BEST ' + best, W / 2 - 34, 168, 1, '#ffe060');
         const nx = BALL_SKINS.find((k) => k.need > totalStars());
-        if (nx) text('NEXT BALL: ' + nx.name + ' AT ' + nx.need + ' STARS', W / 2, 232, 1, '#a0a8c0', 0.5);
+        if (nx) text('NEXT BALL: ' + nx.name + ' AT ' + nx.need + ' STARS', W / 2, 184, 1, '#a0a8c0', 0.5);
+        rankPanel(200);
         btn(far > 0 ? 'CONTINUE LV ' + (far + 1) : 'PLAY', 256, 28, true);
         btn('NEW GAME', 290, 18, false);
         btn('BALL: ' + BALL_SKINS[skin].name + '  >', 312, 18, false);
@@ -1202,8 +1247,9 @@
         text('FULL TIME', W / 2, 110, 5, '#ff6a5a', 0.5);
         text('SCORE ' + score, W / 2, 160, 3, '#ffe040', 0.5);
         text(runCheat ? 'CHEATS USED - BEST NOT SAVED' : score >= best && score > 0 ? 'NEW BEST!' : 'BEST ' + best, W / 2, 186, 1, '#ffffff', 0.5);
-        ctx.drawImage(STAR_ON, W / 2 - 30, 204, 14, 14);
-        text(totalStars() + ' STARS', W / 2 - 12, 208, 1, '#ffe060');
+        ctx.drawImage(STAR_ON, W / 2 - 30, 198, 14, 14);
+        text(totalStars() + ' STARS   +' + runXp + 'XP', W / 2 - 12, 202, 1, '#ffe060');
+        rankPanel(216);
         if (stateT > 0.8) { btn('RETRY LV ' + (level + 1), 256, 28, true); btn('MENU', 290, 18, false); }
       }
     }
@@ -1223,14 +1269,14 @@
       // slow motion on close calls: near the post or bar, or within reach of the keeper, and just after the ball goes in
       const b = world.ball, k = world.keeper;
       const close = state === 'flight' && b.vz > 2 && b.z > -4 && b.z < 0.3 && ((Math.abs(b.x) > HW - 0.8 && Math.abs(b.x) < HW + 0.6) || Math.abs(b.y - GH) < 0.5 || Math.hypot(b.x - k.bx, b.y - k.by) < 1);
-      timeScale += ((close || (world.result === 'goal' && stateT < 0.35) ? 0.3 : 1) - timeScale) * Math.min(1, dt * 12);
+      timeScale += ((close || (world.result === 'goal' && stateT < 0.3) ? 0.4 : 1) - timeScale) * Math.min(1, dt * 12);
       if (state === 'flight' && !b.held) { trail.push([b.x, b.y, b.z]); if (trail.length > 14) trail.shift(); }
       acc += dt * timeScale;
       while (acc >= STEP) { acc -= STEP; handle(Sim.step(world, STEP)); netStep(STEP); }
-      if (state === 'result' && stateT > 2.8) advance();
+      if (state === 'result' && stateT > (msg && msg.dur > 3 ? 3.4 : 2.8)) advance();
     }
     updateCam(dt);
-    if (AC && AC.state === 'running' && idle() && tnow - lastTouch > 6) AC.suspend(); // woken by the next tap
+    if (AC && AC.state === 'running' && idle()) AC.suspend(); // woken by the next tap
     if (AC) {
       const b = world.ball, fl = state === 'flight' && !b.held, t = AC.currentTime;
       const sp = fl ? Math.hypot(b.vx, b.vy, b.vz) : 0, spin = fl ? Math.min(1, Math.hypot(b.sx, b.sy, b.sz)) : 0;
@@ -1242,16 +1288,19 @@
 
   world = Sim.newWorld(0, 1);
   useSkin(skin);
+  applyPerks();
   makeDefenders();
   frameCam();
-  // nothing moving but idle animations: ~15 fps instead of 60 to save battery
-  const idle = () => (state === 'title' || state === 'over' || state === 'aim') && !ptr && levelT > 1.3 && excite < 0.05 && !confetti.length && !(msg && msg.t < 1);
-  let last = performance.now();
+  // battery: a still screen nobody has touched for 20 s draws every 4th frame; any touch is back to full rate next frame
+  const idle = () => (state === 'title' || state === 'over' || state === 'aim') && !ptr && tnow - lastTouch > 20 && excite < 0.05 && !confetti.length;
+  let last = performance.now(), pending = 0, frameNo = 0;
   function frame(now) {
-    if (idle()) setTimeout(() => requestAnimationFrame(frame), 50); // scheduled first, so one bad frame can't freeze the game
-    else requestAnimationFrame(frame);
-    const dt = Math.min(0.1, (now - last) / 1000);
+    requestAnimationFrame(frame); // first, so one bad frame can't freeze the game
+    pending += Math.min(0.1, (now - last) / 1000);
     last = now;
+    if (idle() && ++frameNo & 3) return;
+    const dt = Math.min(0.1, pending);
+    pending = 0;
     try { update(dt); render(); }
     catch (err) { text('ERROR ' + String(err.message).slice(0, 60), 2, H - 8, 1, '#ff4040'); } // visible on-device for bug reports
   }
