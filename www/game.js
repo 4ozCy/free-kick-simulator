@@ -47,7 +47,7 @@
     };
   }
 
-  function newWorld(n, seed, spot) { // spot: optional { dist, ang } chosen by the player
+  function newWorld(n, seed, spot) { // spot: optional overrides, e.g. { dist, ang } chosen by the player, { habit } learned by the keeper
     const L = Object.assign(makeLevel(n), spot), rng = mulberry32(seed | 0), a = L.ang * DEG;
     const ball = { x: L.dist * Math.sin(a), y: R, z: -L.dist * Math.cos(a), vx: 0, vy: 0, vz: 0, sx: 0, sy: 0, sz: 0, rot: 0, held: false };
     const yaw0 = Math.atan2(-ball.x, -ball.z);
@@ -61,7 +61,10 @@
       wall.push({ x: ball.x + fx * WALL_D + fz * off, z: ball.z + fz * WALL_D - fx * off, y: 0,
         jt: 0.12 + i * 0.03 + rng() * 0.08, jh: 0.32 + Math.min(0.18, n * 0.015) });
     }
-    const kx = -side * 0.9; // keeper cheats toward the side the wall doesn't cover
+    // keeper: on the line splitting the angle between the posts, cheating toward the side the wall leaves open,
+    // and leaning toward the side this player keeps scoring on (habit -1 left .. 1 right)
+    const bis = (Math.atan2(-HW - ball.x, -ball.z) + Math.atan2(HW - ball.x, -ball.z)) / 2;
+    const kx = clamp(ball.x + Math.tan(bis) * (-0.4 - ball.z) - side * 0.7 + (L.habit || 0) * 0.35, -HW + 0.5, HW - 0.5);
     return {
       L, rng, ball, yaw0, wall, wallYaw, start: { x: ball.x, z: ball.z },
       keeper: { x: kx, z: -0.4, ax: kx, ay: 0.1, bx: kx, by: 1.95, px: kx, tx: 0, ty: 0, tArr: 9, cool: 0, state: 'idle' },
@@ -169,13 +172,13 @@
       const p = predict(w, k.z);
       if (!p || Math.abs(p.x) > HW + 0.7 || p.y > GH + 0.6) k.state = 'watch';
       else {
-        const err = 1 - L.read;
+        const err = (1 - L.read) * (L.habit && Math.abs(L.habit) >= 0.5 && Math.sign(p.x - k.x) === Math.sign(L.habit) ? 0.5 : 1); // he expected that side
         k.tx = clamp(p.x + (w.rng() - 0.5) * err * 1.6, k.x - L.reach, k.x + L.reach);
         k.ty = clamp(p.y + (w.rng() - 0.5) * err * 0.6, 0.15, 2.45);
         k.tArr = p.t;
         const dx = k.tx - k.x;
         k.state = Math.abs(dx) < 0.5 && k.ty < 2.0 ? 'block' : k.ty < 0.7 ? 'low' : k.ty > 1.7 ? 'high' : 'mid';
-        k.px = k.x;
+        k.px = k.x; k.t0 = t;
         if (k.state === 'block') k.ty = Math.max(k.ty, 1.2); // stay on his feet: body covers the low ball, hands the high one
         else { k.bx = k.x + Math.sign(dx) * 0.3; k.by = 1.4; }
       }
@@ -184,6 +187,14 @@
     if (k.state === 'ready' || k.state === 'watch') {
       k.ax = k.bx = k.x; k.ay = 0.1; k.by = k.state === 'ready' ? 1.7 : 1.95;
       return;
+    }
+    if (!k.reread && t >= k.t0 + 0.15 && !b.held) { // second look: correct part of the way if the ball is bending away from his read
+      k.reread = true;
+      const p = predict(w, k.z);
+      if (p && Math.abs(p.x - k.tx) > 0.4) {
+        k.tx = clamp(k.tx + (p.x - k.tx) * 0.6, k.px - L.reach, k.px + L.reach);
+        k.ty = clamp(k.ty + (p.y - k.ty) * 0.6, k.state === 'block' ? 1.2 : 0.15, 2.45);
+      }
     }
     if (k.state !== 'block' && !b.held && t > k.tArr + 0.25) k.ty = 0.3; // ball has gone by: land on the turf
     // hands chase the read; the body trails back toward the take-off foot (max 1.9 m)
@@ -899,8 +910,46 @@
     HS.stance = heroSprite(h, h.stance);
     applyPerks(); pickStyle(h.style);
   }
+  // the keeper learns: which side this run's goals went in (-1 left, +1 right), last four
+  let recentGoals = [];
+  const habit = () => (recentGoals.length < 2 ? 0 : recentGoals.reduce((a, b) => a + b, 0) / recentGoals.length);
+  // replays: a goal is re-simulated from its inputs (the sim is deterministic), so a record is ~300 bytes
+  let lastKick = null, replay = null, savedLast = false, replays = [];
+  const num = (v, a, b) => (typeof v === 'number' && isFinite(v) ? clamp(v, a, b) : null);
+  function cleanRec(r) { // stored replays are untrusted: rebuild each one from checked, clamped fields or drop it
+    if (!r || typeof r !== 'object' || !r.shot || typeof r.shot !== 'object') return null;
+    const s0 = r.shot, sh = { style: s0.style | 0, aim: num(s0.aim, -1, 1), power: num(s0.power, 0, 1), u: num(s0.u, -1, 1), v: num(s0.v, -1, 1),
+      mega: !!s0.mega, insane: !!s0.insane, assist: !!s0.assist, cv: num(s0.cv || 0, 0, 1), pw: num(s0.pw || 0, 0, 1), tp: num(s0.tp || 0, 0, 1), kn: num(s0.kn || 0, 0, 1) };
+    if (sh.style < 0 || sh.style > 3 || [sh.aim, sh.power, sh.u, sh.v, sh.cv, sh.pw, sh.tp, sh.kn].some((x) => x === null)) return null;
+    const react = num(r.react, 0, 2), read = num(r.read, 0, 1), hb = num(r.habit || 0, -1, 1), n = r.n | 0;
+    if (n < 0 || n > 999 || react === null || read === null || hb === null) return null;
+    const spot2 = r.spot && typeof r.spot === 'object' ? { dist: num(r.spot.dist, 17, 40), ang: num(r.spot.ang, -60, 60) } : null;
+    if (spot2 && (spot2.dist === null || spot2.ang === null)) return null;
+    return { n, seed: r.seed | 0, spot: spot2, shot: sh, react, read, habit: hb, hero: clamp(r.hero | 0, 0, HEROES.length - 1), skin: clamp(r.skin | 0, 0, BALL_SKINS.length - 1),
+      pts: Math.max(0, r.pts | 0), how: String(r.how || '').replace(/[^A-Z0-9 !+.-]/g, '').slice(0, 20), dist: clamp(r.dist | 0, 0, 99), d: String(r.d || '').replace(/[^0-9/]/g, '').slice(0, 5) };
+  }
+  try { const d = JSON.parse(localStorage.getItem('rfk-replays') || '[]'); if (Array.isArray(d)) replays = d.map(cleanRec).filter(Boolean).slice(0, 10); } catch (_) {}
+  const saveReplays = () => { try { localStorage.setItem('rfk-replays', JSON.stringify(replays)); } catch (_) {} };
+  function startReplay(rec, from) {
+    replay = { rec, from, prevWorld: world, prevHero: hero, prevSkin: skin, prevShot: Object.assign({}, shot) };
+    if (rec.hero !== hero) selectHero(rec.hero);
+    if (rec.skin !== skin) useSkin(rec.skin);
+    world = Sim.newWorld(rec.n, rec.seed, Object.assign({}, rec.spot, { habit: rec.habit }));
+    world.L.react = rec.react; world.L.read = rec.read;
+    makeDefenders(); frameCam(); nd.fill(0); nv.fill(0);
+    state = 'runup'; stateT = 0; acc = 0; levelT = 9; trail = []; parts = []; msg = null; fade = 0.6; kCheer = false; timeScale = 1;
+  }
+  function endReplay() {
+    const r = replay;
+    replay = null;
+    if (r.prevHero !== hero) selectHero(r.prevHero);
+    if (r.prevSkin !== skin) useSkin(r.prevSkin);
+    Object.assign(shot, r.prevShot);
+    if (r.from === 'result') return advance(true); // it was this goal: on to the next level
+    world = r.prevWorld; makeDefenders(); frameCam(); state = 'replays'; fade = 0.6;
+  }
   function makeWorld() {
-    world = Sim.newWorld(level, seed, spot);
+    world = Sim.newWorld(level, seed, Object.assign({}, spot, { habit: habit() }));
     if (rank() >= 5) { world.L.read = Math.max(0.1, world.L.read - 0.15); world.L.react += 0.05; } // MIND GAMES
     world.L.react += HEROES[hero].react || 0;
   }
@@ -912,10 +961,12 @@
     makeWorld();
     makeDefenders(); frameCam(); nd.fill(0); nv.fill(0);
     state = 'aim'; levelT = 0; stateT = 0; acc = 0; whistled = false; ptr = null; trail = []; fade = 0.8; kCheer = false; parts = [];
-    showMsg('LEVEL ' + (level + 1), Math.round(world.L.dist) + 'M ' + sideName() + ' - ' + world.L.wallN + ' IN WALL', '#ffffff', 1.8, 4, starsBy[level] || 0);
+    const h = habit();
+    showMsg('LEVEL ' + (level + 1), Math.round(world.L.dist) + 'M ' + sideName() + ' - ' + world.L.wallN + ' IN WALL', '#ffffff', 1.8, 4, starsBy[level] || 0,
+      Math.abs(h) >= 0.75 ? 'KEEPER IS READING YOUR ' + (h > 0 ? 'RIGHT' : 'LEFT') + ' SIDE - MIX IT UP' : '');
   }
   function openHeroes(from) { heroFrom = from; heroPage = Math.floor(hero / 9); state = 'heroes'; fade = 0.5; }
-  function startGame(n) { level = n; lives = maxLives(); score = 0; streak = 0; runCheat = false; runXp = 0; spot = null; applyPerks(); setupLevel(); }
+  function startGame(n) { level = n; lives = maxLives(); score = 0; streak = 0; runCheat = false; runXp = 0; spot = null; recentGoals = []; applyPerks(); setupLevel(); }
   function placeBall(dist, ang) { spot = { dist, ang }; makeWorld(); frameCam(); }
   function pickStyle(i) { shot.style = i; shot.u = STYLES[i].u * (HEROES[hero].foot === 'L' ? -1 : 1); shot.v = STYLES[i].v; hint = { t: 0, s: STYLES[i].name + ': ' + STYLES[i].desc }; }
   function doKick() {
@@ -926,17 +977,21 @@
   function onResult() {
     state = 'result'; stateT = 0;
     const r = world.result, e = world.ev, st = world.st;
+    if (replay) { if (r === 'goal') { excite = 1; shake = 4; flash = 0.55; sfx('cheer'); burstConfetti(); } return; }
     if (r === 'goal') {
+      recentGoals = recentGoals.concat(Math.sign(e.goal.x) || 0).slice(-4);
       const base = 100 + Math.round((world.L.dist - 18) * 10) + (e.target ? 200 : 0) + (e.post ? 50 : 0) + (st.late || st.knuckle ? 50 : 0);
       excite = 1; shake = 4; flash = 0.55; sfx('cheer'); burstConfetti();
       const how = e.target ? 'TOP BINS! ' : e.post ? 'IN OFF THE POST! ' : st.knuckle ? 'KNUCKLEBALL! ' : st.late ? 'TRIVELA! ' : '';
+      const today = new Date();
+      Object.assign(lastKick, { pts: base, how: how.trim(), dist: Math.round(world.L.dist), d: today.getMonth() + 1 + '/' + today.getDate() });
       if (cheatKick) { // cheats score points but earn no stars, streak or best score
         score += base; runCheat = true;
         return showMsg('GOAL!', how + '+' + base, '#ffe040', 2.6, 5, -1, 'CHEATS ON - NO STARS');
       }
       const m = Sim.multiplier(streak), pts = base * m, n = Sim.stars(world, lives === maxLives()), before = totalStars();
       const gain = Sim.xpFor(n, streak, world.L.dist), r0 = rank();
-      score += pts; streak++; xp += gain; runXp += gain;
+      score += pts; streak++; xp += gain; runXp += gain; lastKick.pts = pts;
       const up = rank() > r0 ? Sim.RANKS[rank()] : null;
       if (up) { applyPerks(); setTimeout(() => sfx('stars3'), 1200); }
       if (score > best && !runCheat) best = score;
@@ -960,8 +1015,8 @@
     const cols = ['#ffd020', '#ff4060', '#40c0ff', '#60ff80', '#ffffff', '#ff8020'];
     for (let i = 0; i < 70; i++) confetti.push({ x: Math.random() * W, y: -Math.random() * 120, vx: (Math.random() - 0.5) * 40, vy: 30 + Math.random() * 50, c: cols[i % cols.length], ph: Math.random() * 6 });
   }
-  function advance() {
-    if (world.result === 'goal') { level++; lives = maxLives(); spot = null; if (level > far) { far = level; persist(); } setupLevel(); } // 3 balls per level, refilled on every goal
+  function advance(goal = world.result === 'goal') {
+    if (goal) { level++; lives = maxLives(); spot = null; if (level > far) { far = level; persist(); } setupLevel(); } // 3 balls per level, refilled on every goal
     else if (--lives <= 0) { state = 'over'; stateT = 0; msg = null; fade = 0.7; }
     else setupLevel();
   }
@@ -986,6 +1041,14 @@
     if (ptr) return;
     const [x, y] = loc(e);
     ripples.push({ x, y, t: 0 });
+    if (replay) return endReplay(); // tap skips a replay
+    if (state === 'replays') {
+      const i = Math.floor((y - 40) / 30);
+      if (y >= 40 && i < replays.length && y < 40 + i * 30 + 26) {
+        if (x >= 232) { replays.splice(i, 1); saveReplays(); } else startReplay(replays[i], 'replays');
+      } else if (y >= 404 && y < 424) { state = 'title'; fade = 0.6; }
+      return;
+    }
     if (state === 'heroes') {
       const pages = Math.ceil(HEROES.length / 9), col = Math.floor((x - 3) / 89), row = Math.floor((y - 34) / 90), i = heroPage * 9 + row * 3 + col;
       if (y < 30 && x < 34) heroPage = (heroPage + pages - 1) % pages;
@@ -1004,6 +1067,7 @@
     if (state === 'title') {
       if (y >= 282 && y < 300) return startGame(0); // NEW GAME
       if (y >= 326 && y < 344) return openHeroes('title'); // PLAYER
+      if (y >= 348 && y < 366) { state = 'replays'; fade = 0.6; return; } // REPLAYS
       if (y >= 304 && y < 322) { // cycle through unlocked balls
         do skin = (skin + 1) % BALL_SKINS.length; while (!unlocked(skin));
         useSkin(skin); persist(); return;
@@ -1015,7 +1079,15 @@
       if (y >= 290 && y < 308) { state = 'title'; fade = 0.6; return; } // MENU
       return startGame(level); // RETRY this level
     }
-    if (state === 'result') { if (stateT > 0.9) advance(); return; }
+    if (state === 'result') {
+      if (world.result === 'goal' && lastKick && y >= 300 && y < 322) {
+        if (x < 135) startReplay(lastKick, 'result');
+        else if (!savedLast) { replays = [Object.assign({}, lastKick)].concat(replays).slice(0, 10); saveReplays(); savedLast = true; sfx('stars1'); } // newest first, 10 kept
+        return;
+      }
+      if (stateT > 0.9) advance();
+      return;
+    }
     if (state !== 'aim') return;
     if (x >= W - 22 && y < 20) { state = 'pause'; return; } // pause / menu button
     let mode = null;
@@ -1253,7 +1325,7 @@
     });
     ctx.globalAlpha = 1;
 
-    if (state === 'aim' || state === 'runup') { // dotted launch arc for the first few metres
+    if ((state === 'aim' || state === 'runup') && !replay) { // dotted launch arc for the first few metres
       const pts = Sim.preview(world, shot, (rank() >= 6 ? world.L.dist + 3 : rank() >= 1 ? 12 : 7) + (HEROES[hero].guide || 0)); // guide perks
       pts.forEach((q, i) => {
         const p = proj(q[0], q[1], q[2]);
@@ -1388,6 +1460,26 @@
       if (msg.extra) text(msg.extra, W / 2, ly, 1, '#60e0ff', 0.5);
     }
     const btn = (label, y, h, hot) => { bevel(50, y, 170, h, hot ? '#c82828' : '#2a3264', hot ? '#ff9090' : '#4a56a0', hot ? '#801010' : '#141834'); text(label, W / 2, y + (h - 5 * (h > 20 ? 2 : 1)) / 2, h > 20 ? 2 : 1, '#ffffff', 0.5); };
+    if (replay) { text('REPLAY', W / 2, 60, 2, Math.floor(tnow * 3) & 1 ? '#ff4040' : '#ffffff', 0.5); text('TAP TO SKIP', W / 2, 74, 1, '#c8e8ff', 0.5); }
+    if (state === 'result' && !replay && world.result === 'goal' && lastKick) { // replay / save this goal
+      bevel(40, 300, 90, 22, '#c82828', '#ff9090', '#801010'); text('> REPLAY', 85, 308, 1, '#ffffff', 0.5);
+      bevel(140, 300, 90, 22, savedLast ? '#108040' : '#2a3264', savedLast ? '#60ff90' : '#4a56a0', savedLast ? '#084020' : '#141834');
+      text(savedLast ? 'SAVED!' : 'SAVE REPLAY', 185, 308, 1, '#ffffff', 0.5);
+    }
+    if (state === 'replays') {
+      ctx.fillStyle = 'rgba(6,8,24,0.9)'; ctx.fillRect(0, 0, W, H);
+      text('SAVED REPLAYS', W / 2, 14, 2, '#ffe040', 0.5);
+      if (!replays.length) { text('NO REPLAYS YET', W / 2, 150, 2, '#ffffff', 0.5); text('SCORE A GOAL, THEN TAP SAVE REPLAY', W / 2, 168, 1, '#a0a8c0', 0.5); }
+      replays.forEach((r, i) => {
+        const y = 40 + i * 30;
+        bevel(8, y, 254, 26, '#1a1e40', '#4a56a0', '#0a0c1c');
+        text('LV ' + (r.n + 1) + '  ' + HEROES[r.hero].name + '  ' + r.dist + 'M', 14, y + 5, 1, '#ffffff');
+        text((r.how ? r.how + ' ' : '') + '+' + r.pts + (r.d ? '   ' + r.d : ''), 14, y + 15, 1, '#ffe060');
+        bevel(200, y + 3, 28, 20, '#c82828', '#ff9090', '#801010'); text('>', 214, y + 8, 2, '#ffffff', 0.5);
+        bevel(232, y + 3, 26, 20, '#2a3264', '#4a56a0', '#141834'); text('X', 245, y + 8, 2, '#ff8080', 0.5);
+      });
+      btn('BACK', 406, 18, false);
+    }
     if (state === 'pause') {
       ctx.fillStyle = 'rgba(6,8,24,0.75)'; ctx.fillRect(0, 0, W, H);
       text('PAUSED', W / 2, 120, 5, '#ffffff', 0.5);
@@ -1432,9 +1524,10 @@
         btn('NEW GAME', 282, 18, false);
         btn('BALL: ' + BALL_SKINS[skin].name + '  >', 304, 18, false);
         btn('PLAYER: ' + HEROES[hero].name + '  >', 326, 18, false);
-        text('SWIPE UP TO SHOOT. DRAG THE BALL', W / 2, 354, 1, '#c8e8ff', 0.5);
-        text('WIDGET TO PICK WHERE YOU STRIKE IT.', W / 2, 364, 1, '#c8e8ff', 0.5);
-        text('GOALS IN A ROW MULTIPLY YOUR POINTS.', W / 2, 378, 1, '#ffe060', 0.5);
+        btn('REPLAYS (' + replays.length + ')', 348, 18, false);
+        text('SWIPE UP TO SHOOT. DRAG THE BALL', W / 2, 374, 1, '#c8e8ff', 0.5);
+        text('WIDGET TO PICK WHERE YOU STRIKE IT.', W / 2, 384, 1, '#c8e8ff', 0.5);
+        text('GOALS IN A ROW MULTIPLY YOUR POINTS.', W / 2, 396, 1, '#ffe060', 0.5);
       } else {
         text('FULL TIME', W / 2, 110, 5, '#ff6a5a', 0.5);
         text('SCORE ' + score, W / 2, 160, 3, '#ffe040', 0.5);
@@ -1448,13 +1541,18 @@
   }
 
   function update(dt) {
+    if (replay) dt *= 0.6; // replays run at 60% speed
     tnow += dt; levelT += dt; stateT += dt;
     excite = Math.max(0, excite - dt * 0.22);
     if (msg) msg.t += dt;
     if (hint) hint.t += dt;
     if (state === 'aim' && levelT > 0.4 && !whistled) { whistled = true; sfx('whistle'); }
     if (state === 'runup' && stateT >= HEROES[hero].runT) {
-      Sim.kick(world, shot); state = 'flight'; stateT = 0; acc = 0; sfx('kick');
+      if (!replay) { // everything the sim needs to play this exact shot again
+        lastKick = { n: level, seed, spot: spot ? { dist: spot.dist, ang: spot.ang } : null, shot: Object.assign({}, shot), react: world.L.react, read: world.L.read, habit: world.L.habit || 0, hero, skin };
+        savedLast = false;
+      }
+      Sim.kick(world, replay ? replay.rec.shot : shot); state = 'flight'; stateT = 0; acc = 0; sfx('kick');
       squash = 0.09; puff(world.ball.x, 0.05, world.ball.z, 14, GRASS_C, 1.2, 1.6);
     }
     shake = Math.max(0, shake - dt * 20);
@@ -1482,7 +1580,10 @@
       if (state === 'flight' && !b.held) { trail.push([b.x, b.y, b.z]); if (trail.length > 14) trail.shift(); }
       acc += dt * timeScale;
       while (acc >= STEP) { acc -= STEP; handle(Sim.step(world, STEP)); netStep(STEP); }
-      if (state === 'result' && stateT > (msg && msg.dur > 3 ? 3.4 : 2.8)) advance();
+      if (state === 'result') {
+        if (replay) { if (stateT > 1.8) endReplay(); }
+        else if (stateT > (world.result === 'goal' ? 4 : msg && msg.dur > 3 ? 3.4 : 2.8)) advance(); // goals linger for REPLAY / SAVE
+      }
     }
     updateCam(dt);
     if (AC && AC.state === 'running' && idle()) AC.suspend(); // woken by the next tap
@@ -1501,7 +1602,7 @@
   makeDefenders();
   frameCam();
   // battery: a still screen nobody has touched for 20 s draws every 4th frame; any touch is back to full rate next frame
-  const idle = () => (state === 'title' || state === 'over' || state === 'aim' || state === 'heroes' || state === 'pause') && !ptr && tnow - lastTouch > 20 && excite < 0.05 && !confetti.length && !parts.length && !ripples.length && fade <= 0 && flash <= 0;
+  const idle = () => (state === 'title' || state === 'over' || state === 'aim' || state === 'heroes' || state === 'pause' || state === 'replays') && !ptr && tnow - lastTouch > 20 && excite < 0.05 && !confetti.length && !parts.length && !ripples.length && fade <= 0 && flash <= 0;
   let last = performance.now(), pending = 0, frameNo = 0;
   function frame(now) {
     requestAnimationFrame(frame); // first, so one bad frame can't freeze the game
@@ -1515,12 +1616,14 @@
   }
   requestAnimationFrame(frame);
   window.__back = () => { // Android back: opens/closes the menu; only quits the app from the title screen
-    if (state === 'aim') state = 'pause';
+    if (replay) endReplay();
+    else if (state === 'replays') { state = 'title'; fade = 0.6; }
+    else if (state === 'aim') state = 'pause';
     else if (state === 'pause') state = 'aim';
     else if (state === 'heroes') { state = heroFrom; fade = 0.5; }
     else if (state === 'over') { state = 'title'; fade = 0.6; }
     else return state !== 'title'; // mid-shot: ignore
     return true;
   };
-  window.__rfk = { Sim, get world() { return world; }, get state() { return state; }, shot }; // handle for automated checks
+  window.__rfk = { Sim, get world() { return world; }, get state() { return state; }, get replay() { return replay; }, get lastKick() { return lastKick; }, shot }; // handle for automated checks
 })();

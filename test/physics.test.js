@@ -149,3 +149,34 @@ test('knuckleball dips late instead of sailing over, and scores about as often a
   assert.ok(ko / n < 0.25, `knuckleballs over the bar: ${ko}/${n}`);
   assert.ok(kg >= cg * 0.6, `knuckle goals ${kg} vs curve goals ${cg}`);
 });
+
+test('replays: rebuilding a world from the recorded inputs replays the exact same shot', () => {
+  const rec = { n: 7, seed: 12345, spot: { dist: 27, ang: -12 }, habit: 0.5, react: 0.5, read: 0.4, shot: { style: 2, aim: -0.3, power: 0.8, u: 0.6, v: -0.4, cv: 0.2, kn: 0.1 } };
+  const play = () => {
+    const w = Sim.newWorld(rec.n, rec.seed, Object.assign({}, rec.spot, { habit: rec.habit }));
+    w.L.react = rec.react; w.L.read = rec.read;
+    Sim.kick(w, rec.shot);
+    for (let i = 0; i < 240 * 6 && !w.result; i++) Sim.step(w, 1 / 240);
+    return [w.result, w.ball.x, w.ball.y, w.ball.z, w.keeper.bx, w.keeper.by].join();
+  };
+  assert.equal(play(), play());
+});
+
+test('keeper stands on the angle between the posts and cheats away from the wall', () => {
+  assert.ok(Math.abs(Sim.newWorld(0, 1).keeper.x) < 1e-9); // central kick: dead centre
+  assert.ok(Sim.newWorld(2, 1).keeper.x < 0); // ball on the right, wall covers the near post: he favours the left
+  assert.ok(Sim.newWorld(4, 1).keeper.x > 0); // and the mirror case
+});
+
+test('keeper learns habits: leans to the favoured side and stops more shots there', () => {
+  assert.ok(Sim.newWorld(6, 1, { habit: 1 }).keeper.x > Sim.newWorld(6, 1).keeper.x + 0.3);
+  let base = 0, learned = 0, seed = 1;
+  for (const L of [3, 6]) for (let a = 0.1; a <= 1.001; a += 0.1) for (const p of [0.5, 0.8]) for (const st of [0, 1, 3]) for (const v of [-0.8, -0.4]) {
+    const shot = { style: st, aim: a, power: p, u: st === 1 ? 0.6 : 0, v }, sd = seed++;
+    const run = (spot) => { const w = Sim.newWorld(L, sd, spot); Sim.kick(w, shot); for (let i = 0; i < 1440 && !w.result; i++) Sim.step(w, 1 / 240); return w; };
+    const a0 = run(undefined), a1 = run({ habit: 1 });
+    if (a0.ev.goal && a0.ev.goal.x > 0) base++;     // right-side goals against a fresh keeper
+    if (a1.ev.goal && a1.ev.goal.x > 0) learned++;  // ... against one who expects the right
+  }
+  assert.ok(learned < base, `right-side goals: fresh keeper ${base}, learned keeper ${learned}`);
+});
