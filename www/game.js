@@ -25,7 +25,7 @@
     { name: 'POWER', desc: 'DRIVEN, FAST, DIPS LATE', vMin: 20, vMax: 34, elev: 9, loft: 11, spin: 0.25, top0: 0.75, top: 0.3, u: 0, v: -0.3 },
     { name: 'CURVE', desc: 'WHIP IT AROUND THE WALL', vMin: 15, vMax: 28, elev: 14, loft: 11, spin: 1.0, top0: 0.6, top: 0.3, u: 0.65, v: -0.2 },
     { name: 'TRIVELA', desc: 'OUTSIDE BOOT, LATE SWERVE', vMin: 17, vMax: 30, elev: 12, loft: 11, spin: -1.15, top0: 0.5, top: 0.3, u: 0.55, v: -0.1, late: true },
-    { name: 'KNUCKLE', desc: 'NO SPIN, WILD WOBBLE', vMin: 22, vMax: 33, elev: 12, loft: 11, spin: 0, top0: 0, top: 0, u: 0, v: 0, knuckle: true },
+    { name: 'KNUCKLE', desc: 'NO SPIN: WOBBLES, DIPS LATE', vMin: 22, vMax: 33, elev: 10, loft: 11, spin: 0, top0: 0, top: 0, u: 0, v: 0, knuckle: true },
   ];
 
   // [distance m, angle deg (+ = ball right of goal), wall men, wind m/s, top-corner targets]
@@ -96,22 +96,25 @@
   }
 
   const A = [0, 0, 0];
-  function accel(b, wind, t, late, wob) {
-    const rx = b.vx - wind.x, ry = b.vy, rz = b.vz - wind.z, d = DRAG * Math.hypot(rx, ry, rz);
-    const m = late ? MAGNUS * (0.25 + 1.3 * smooth((t - 0.1) / 0.6)) : MAGNUS;
+  const KN = { crisis: 3, from: 31, span: 9, lat: 4, up: 2.5 }; // knuckleball tuning: drag crisis + wobble (tuned so it scores close to a curler)
+  function accel(b, wind, t, st, wob) { // st: the kick style (null = plain flight, as the keeper imagines it)
+    const rx = b.vx - wind.x, ry = b.vy, rz = b.vz - wind.z, sp = Math.hypot(rx, ry, rz);
+    // drag crisis: a spinless ball's drag jumps once it slows below ~31 m/s, so a knuckleball dies and drops late
+    const d = DRAG * sp * (st && st.knuckle ? 1 + KN.crisis * smooth((KN.from - sp) / KN.span) : 1);
+    const m = st && st.late ? MAGNUS * (0.25 + 1.3 * smooth((t - 0.1) / 0.6)) : MAGNUS;
     A[0] = -d * rx + m * (b.sy * b.vz - b.sz * b.vy);
     A[1] = -G - d * ry + m * (b.sz * b.vx - b.sx * b.vz);
     A[2] = -d * rz + m * (b.sx * b.vy - b.sy * b.vx);
     if (wob) { // no spin: the wake sheds unevenly, so the ball gets shoved sideways and down at random
       const h = Math.hypot(b.vx, b.vz) || 1, k = clamp((Math.hypot(b.vx, b.vy, b.vz) - 14) / 14, 0, 1);
-      const lat = 7 * k * wob[4] * Math.sin(wob[0] * t + wob[1]);
-      A[0] += (lat * b.vz) / h; A[2] -= (lat * b.vx) / h; A[1] += 4 * k * wob[4] * Math.sin(wob[2] * t + wob[3]);
+      const lat = KN.lat * k * wob[4] * Math.sin(wob[0] * t + wob[1]);
+      A[0] += (lat * b.vz) / h; A[2] -= (lat * b.vx) / h; A[1] += KN.up * k * wob[4] * Math.sin(wob[2] * t + wob[3]);
     }
     return A;
   }
 
-  function move(b, w, dt, t, late, wob, ev) {
-    const a = accel(b, w.L.wind, t, late, wob);
+  function move(b, w, dt, t, st, wob, ev) {
+    const a = accel(b, w.L.wind, t, st, wob);
     b.vx += a[0] * dt; b.vy += a[1] * dt; b.vz += a[2] * dt;
     b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
     const sd = 1 - 0.12 * dt;
@@ -131,7 +134,7 @@
     for (let i = 0; i < 6000; i++) {
       const sp = Math.hypot(b.vx, b.vy, b.vz) || 1, dt = Math.min(1 / 240, 0.1 / sp);
       t += dt; gap += sp * dt;
-      move(b, w, dt, t, st.late, null, null);
+      move(b, w, dt, t, st, null, null);
       if (gap >= 0.3) { gap = 0; pts.push([b.x, b.y, b.z]); }
       if (Math.hypot(b.x - w.start.x, b.z - w.start.z) > maxD) break;
     }
@@ -143,7 +146,7 @@
     const b = Object.assign({}, w.ball), r = w.L.read;
     b.sx *= r; b.sy *= r; b.sz *= r;
     for (let i = 1; i < 720; i++) {
-      move(b, w, 1 / 240, w.ft + i / 240, false, null, null);
+      move(b, w, 1 / 240, w.ft + i / 240, null, null, null);
       if (b.z >= zp) return { x: b.x, y: b.y, t: w.ft + i / 240 };
       if (b.vz <= 0) return null;
     }
@@ -221,7 +224,7 @@
     if (b.held) { b.x = k.bx; b.y = Math.max(R, k.by); b.z = k.z + 0.15; b.vx = b.vy = b.vz = 0; }
     else {
       const px = b.x, py = b.y, pz = b.z;
-      move(b, w, dt, t, w.st.late, w.wob, ev);
+      move(b, w, dt, t, w.st, w.wob, ev);
       if (ghost) home(w, b, dt);
       b.rot += dt * (Math.hypot(b.sx, b.sy, b.sz) * 35 + (w.wob ? 0.4 : 0) + Math.hypot(b.vx, b.vz) * 0.05);
 
@@ -326,7 +329,7 @@
   const rankOf = (xp) => { let r = 0; while (r + 1 < RANKS.length && xp >= RANKS[r + 1].xp) r++; return r; };
   const xpFor = (nStars, streak, dist) => 10 + 10 * nStars + 5 * Math.min(streak, 5) + Math.max(0, Math.round(dist - 18));
 
-  const Sim = { RANKS, rankOf, xpFor, stars, multiplier, missBy, STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview, speed: speedOf };
+  const Sim = { KN, RANKS, rankOf, xpFor, stars, multiplier, missBy, STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview, speed: speedOf };
   if (typeof module !== 'undefined' && module.exports) { module.exports = Sim; return; }
 
   // =================================================================== BROWSER

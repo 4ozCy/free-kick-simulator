@@ -139,3 +139,13 @@ test('hero perks: extra topspin dips the ball lower, knuckle bonus wobbles it ha
   const x = (kn) => { const v = Sim.newWorld(6, 5); Sim.kick(v, { style: 3, aim: 0, power: 1, u: 0, v: 0, kn }); for (let i = 0; i < 220; i++) Sim.step(v, 1 / 240); return v.ball.x; };
   assert.ok(Math.abs(x(1) - x(0)) > 0.05);
 });
+
+test('knuckleball dips late instead of sailing over, and scores about as often as a curler', () => {
+  let kg = 0, ko = 0, cg = 0, n = 0, seed = 1;
+  for (const L of [0, 6]) for (let a = -1; a <= 1.001; a += 0.2) for (const p of [0.5, 0.8, 1]) for (const v of [-0.9, -0.5, 0]) {
+    const sd = seed++, k = fly(L, { style: 3, aim: a, power: p, u: 0, v }, sd), c = fly(L, { style: 1, aim: a, power: p, u: 0.6 * Math.sign(a), v }, sd);
+    n++; if (k.result === 'goal') kg++; if (k.result === 'over') ko++; if (c.result === 'goal') cg++;
+  }
+  assert.ok(ko / n < 0.25, `knuckleballs over the bar: ${ko}/${n}`);
+  assert.ok(kg >= cg * 0.6, `knuckle goals ${kg} vs curve goals ${cg}`);
+});
