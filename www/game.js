@@ -874,8 +874,9 @@
   let levelT = 0, stateT = 0, tnow = 0, excite = 0, acc = 0, whistled = true, msg = null, hint = null, ptr = null;
   const shot = { style: 1, aim: 0, power: 0.6, u: STYLES[1].u, v: STYLES[1].v, mega: false, insane: false, assist: false };
   let spot = null, seed = 1, moving = false; // player-chosen kick spot for the current level
-  const CHIPS = [['MOVE', 'move'], ['1000KM/H', 'mega'], ['MEGA CURVE', 'insane'], ['AIM ASSIST', 'assist']], CHIP_Y = 32;
+  const CHIPS = [['MOVE', 'move'], ['1000KM/H', 'mega'], ['MEGA CURVE', 'insane'], ['AIM ASSIST', 'assist'], ['SLOW-MO', 'slowmo']], CHIP_Y = 32, CHIP_W = 53;
   // saved progress: best score, furthest level, best stars per level, chosen ball. Anything unreadable starts fresh.
+  let slowmo = false, slowSkip = false; // whole-shot slow motion (playback speed only; the outcome is identical)
   let far = 0, starsBy = {}, skin = 0, streak = 0, runCheat = false, cheatKick = false, xp = 0, runXp = 0;
   let shake = 0, timeScale = 1, trail = [], confetti = [];
   let parts = [], ripples = [], squash = 0, fade = 1, flash = 0, shownScore = 0, kCheer = false; // animation state
@@ -889,11 +890,11 @@
   try {
     const d = JSON.parse(localStorage.getItem('rfk-save') || 'null');
     if (d && typeof d === 'object') {
-      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); xp = Math.max(0, d.xp | 0); hero = clamp(d.hero | 0, 0, HEROES.length - 1); skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
+      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); xp = Math.max(0, d.xp | 0); hero = clamp(d.hero | 0, 0, HEROES.length - 1); slowmo = d.slowmo === true; skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
       if (d.stars && typeof d.stars === 'object') for (const k in d.stars) starsBy[k] = clamp(d.stars[k] | 0, 0, 3);
     } else best = +localStorage.getItem('rfk-best') || 0; // pre-progression saves kept only the best score
   } catch (_) {}
-  const persist = () => { try { localStorage.setItem('rfk-save', JSON.stringify({ best, far, stars: starsBy, skin, xp, hero })); } catch (_) {} };
+  const persist = () => { try { localStorage.setItem('rfk-save', JSON.stringify({ best, far, stars: starsBy, skin, xp, hero, slowmo })); } catch (_) {} };
   const totalStars = () => Object.keys(starsBy).reduce((a, k) => a + starsBy[k], 0);
   const unlocked = (i) => totalStars() >= BALL_SKINS[i].need;
   if (!unlocked(skin)) skin = 0;
@@ -971,7 +972,7 @@
   function pickStyle(i) { shot.style = i; shot.u = STYLES[i].u * (HEROES[hero].foot === 'L' ? -1 : 1); shot.v = STYLES[i].v; hint = { t: 0, s: STYLES[i].name + ': ' + STYLES[i].desc }; }
   function doKick() {
     if (state !== 'aim') return;
-    state = 'runup'; stateT = 0; ptr = null; msg = null; moving = false; trail = [];
+    state = 'runup'; stateT = 0; ptr = null; msg = null; moving = false; trail = []; slowSkip = false;
     cheatKick = shot.mega || shot.insane || shot.assist;
   }
   function onResult() {
@@ -1042,6 +1043,7 @@
     const [x, y] = loc(e);
     ripples.push({ x, y, t: 0 });
     if (replay) return endReplay(); // tap skips a replay
+    if (slowNow()) { slowSkip = true; return; } // tap during a slow-mo shot: full speed for the rest of it
     if (state === 'replays') {
       const i = Math.floor((y - 40) / 30);
       if (y >= 40 && i < replays.length && y < 40 + i * 30 + 26) {
@@ -1092,8 +1094,8 @@
     if (x >= W - 22 && y < 20) { state = 'pause'; return; } // pause / menu button
     let mode = null;
     if (y >= CHIP_Y - 2 && y < CHIP_Y + 14) {
-      const c = CHIPS[Math.floor((x - 3) / 67)];
-      if (c) { if (c[1] === 'move') moving = !moving; else shot[c[1]] = !shot[c[1]]; }
+      const c = CHIPS[Math.floor((x - 3) / CHIP_W)];
+      if (c) { if (c[1] === 'move') moving = !moving; else if (c[1] === 'slowmo') { slowmo = !slowmo; persist(); } else shot[c[1]] = !shot[c[1]]; }
       return;
     }
     if (y >= 393 && y < 413) { const i = Math.floor((x - 3) / 66); if (i >= 0 && i < 4) pickStyle(i); return; }
@@ -1338,7 +1340,7 @@
       ctx.globalAlpha = 1;
     }
     ctx.restore();
-    const bar = Math.round(((1 - timeScale) / 0.6) * 18); // cinema bars so slow motion reads as an effect, not lag
+    const bar = slowNow() || (replay && slowmo) ? 18 : Math.round(((1 - timeScale) / 0.6) * 18); // cinema bars so slow motion reads as an effect, not lag
     if (bar > 0) { ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, W, bar); ctx.fillRect(0, UI_Y - bar, W, bar); }
     hud();
     ui();
@@ -1355,13 +1357,13 @@
   function hud() {
     const L = world.L, wx = L.wind.x, wz = L.wind.z;
     const X = wx * cam.r[0] + wz * cam.r[2], Zc = wx * cam.f[0] + wz * cam.f[2], l = Math.hypot(X, Zc) || 1, dx = Math.round((X / l) * 20) / 20, dy = Math.round((-Zc / l) * 20) / 20;
-    cached(HUD_L, [L.n, L.dist, L.ang, shownScore, best, lives, dx, dy, moving, shot.mega, shot.insane, shot.assist, streak, skin, xp].join(), 0, 56, () => drawHud(dx, dy));
+    cached(HUD_L, [L.n, L.dist, L.ang, shownScore, best, lives, dx, dy, moving, shot.mega, shot.insane, shot.assist, slowmo, streak, skin, xp].join(), 0, 56, () => drawHud(dx, dy));
   }
   function drawHud(dx, dy) {
     CHIPS.forEach(([label, key], i) => {
-      const on = key === 'move' ? moving : shot[key], x = 3 + i * 67;
-      bevel(x, CHIP_Y, 64, 12, on ? '#30d070' : 'rgba(20,24,56,0.85)', on ? '#a0ffc0' : '#4a56a0', on ? '#108040' : '#141834');
-      text(label, x + 32, CHIP_Y + 4, 1, on ? '#002010' : '#d0dcff', 0.5, on ? null : '#000000');
+      const on = key === 'move' ? moving : key === 'slowmo' ? slowmo : shot[key], x = 3 + i * CHIP_W;
+      bevel(x, CHIP_Y, CHIP_W - 2, 12, on ? '#30d070' : 'rgba(20,24,56,0.85)', on ? '#a0ffc0' : '#4a56a0', on ? '#108040' : '#141834');
+      text(label, x + (CHIP_W - 2) / 2, CHIP_Y + 4, 1, on ? '#002010' : '#d0dcff', 0.5, on ? null : '#000000');
     });
     const L = world.L;
     text('LV ' + (L.n + 1), 4, 4, 2);
@@ -1460,6 +1462,7 @@
       if (msg.extra) text(msg.extra, W / 2, ly, 1, '#60e0ff', 0.5);
     }
     const btn = (label, y, h, hot) => { bevel(50, y, 170, h, hot ? '#c82828' : '#2a3264', hot ? '#ff9090' : '#4a56a0', hot ? '#801010' : '#141834'); text(label, W / 2, y + (h - 5 * (h > 20 ? 2 : 1)) / 2, h > 20 ? 2 : 1, '#ffffff', 0.5); };
+    if (slowNow()) { text('SLOW-MO', W / 2, 60, 2, '#60e0ff', 0.5); text('TAP FOR FULL SPEED', W / 2, 74, 1, '#c8e8ff', 0.5); }
     if (replay) { text('REPLAY', W / 2, 60, 2, Math.floor(tnow * 3) & 1 ? '#ff4040' : '#ffffff', 0.5); text('TAP TO SKIP', W / 2, 74, 1, '#c8e8ff', 0.5); }
     if (state === 'result' && !replay && world.result === 'goal' && lastKick) { // replay / save this goal
       bevel(40, 300, 90, 22, '#c82828', '#ff9090', '#801010'); text('> REPLAY', 85, 308, 1, '#ffffff', 0.5);
@@ -1540,8 +1543,10 @@
     }
   }
 
+  const slowNow = () => slowmo && !slowSkip && !replay && (state === 'runup' || state === 'flight' || (state === 'result' && stateT < 0.6));
   function update(dt) {
-    if (replay) dt *= 0.6; // replays run at 60% speed
+    if (replay) dt *= slowmo ? 0.3 : 0.6; // replays: 60% speed, 30% in slow-mo
+    else if (slowNow()) dt *= 0.3; // slow-mo: run-up, strike, flight and the first moment after, at 30%
     tnow += dt; levelT += dt; stateT += dt;
     excite = Math.max(0, excite - dt * 0.22);
     if (msg) msg.t += dt;
