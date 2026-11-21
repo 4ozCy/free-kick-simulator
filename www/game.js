@@ -564,16 +564,18 @@
     g.putImageData(d, 0, 0);
     return c;
   }
-  function defender(skin, hair, jump) {
+  function defender(skin, hair, pose) { // stand | jump | crouch (bracing / landing) | head (hands on head) | cheer (arms up)
     return mk(12, 26, (p) => {
-      const S = '#d42a34', Sd = '#9a1826', K = '#151515';
-      p(4, 0, 4, 2, hair); p(4, 2, 4, 4, skin); p(5, 3, 2, 1, '#2a1a1a'); p(5, 6, 2, 1, skin);
-      p(3, 7, 6, 8, S); p(8, 7, 1, 8, Sd); p(5, 7, 2, 1, '#ffffff');
-      p(2, 7, 1, 3, S); p(9, 7, 1, 3, Sd); p(2, 10, 1, 3, skin); p(9, 10, 1, 3, skin);
-      p(3, 13, 2, 1, skin); p(7, 13, 2, 1, skin); p(4, 14, 4, 1, skin); // hands guarding
-      p(3, 15, 6, 4, '#f2f2f2'); p(8, 15, 1, 4, '#c4c4cc');
-      if (!jump) { p(3, 19, 2, 3, skin); p(7, 19, 2, 3, skin); p(3, 22, 2, 3, S); p(7, 22, 2, 3, S); p(2, 25, 3, 1, K); p(7, 25, 3, 1, K); }
-      else { p(2, 19, 2, 2, skin); p(8, 19, 2, 2, skin); p(2, 21, 2, 2, S); p(8, 21, 2, 2, S); p(1, 23, 3, 1, K); p(8, 23, 3, 1, K); }
+      const S = '#d42a34', Sd = '#9a1826', K = '#151515', c = pose === 'crouch' ? 2 : 0; // crouch drops the upper body 2px
+      p(4, c, 4, 2, hair); p(4, 2 + c, 4, 4, skin); p(5, 3 + c, 2, 1, '#2a1a1a'); p(5, 6 + c, 2, 1, skin);
+      p(3, 7 + c, 6, 8, S); p(8, 7 + c, 1, 8, Sd); p(5, 7 + c, 2, 1, '#ffffff');
+      if (pose === 'cheer') { p(2, 4, 1, 4, S); p(9, 4, 1, 4, Sd); p(2, 1, 1, 3, skin); p(9, 1, 1, 3, skin); }
+      else if (pose === 'head') { p(1, 5, 2, 2, S); p(9, 5, 2, 2, Sd); p(2, 2, 1, 3, skin); p(9, 2, 1, 3, skin); p(3, 1, 1, 1, skin); p(8, 1, 1, 1, skin); }
+      else { p(2, 7 + c, 1, 3, S); p(9, 7 + c, 1, 3, Sd); p(2, 10 + c, 1, 3, skin); p(9, 10 + c, 1, 3, skin); p(3, 13 + c, 2, 1, skin); p(7, 13 + c, 2, 1, skin); p(4, 14 + c, 4, 1, skin); }
+      p(3, 15 + c, 6, 4 - c, '#f2f2f2'); p(8, 15 + c, 1, 4 - c, '#c4c4cc');
+      if (pose === 'jump') { p(2, 19, 2, 2, skin); p(8, 19, 2, 2, skin); p(2, 21, 2, 2, S); p(8, 21, 2, 2, S); p(1, 23, 3, 1, K); p(8, 23, 3, 1, K); }
+      else if (pose === 'crouch') { p(2, 19, 2, 3, skin); p(8, 19, 2, 3, skin); p(2, 22, 2, 3, S); p(8, 22, 2, 3, S); p(1, 25, 3, 1, K); p(8, 25, 3, 1, K); }
+      else { p(3, 19, 2, 3, skin); p(7, 19, 2, 3, skin); p(3, 22, 2, 3, S); p(7, 22, 2, 3, S); p(2, 25, 3, 1, K); p(7, 25, 3, 1, K); }
     });
   }
   const KJ = '#f2d22a', KJd = '#b8960e', GL = '#ffffff', GLd = '#8ad0ff', KS = SKINS[1], KH = '#2a1a10';
@@ -592,6 +594,12 @@
       p(3, 9, 6, 3, GL); p(3, 11, 6, 1, GLd);
       p(3, 15, 6, 3, '#202028'); p(3, 18, 2, 4, KS); p(7, 18, 2, 4, KS);
       p(3, 22, 2, 3, KJd); p(7, 22, 2, 3, KJd); p(2, 25, 3, 2, '#151515'); p(7, 25, 3, 2, '#151515');
+    }),
+    set: mk(12, 24, (p) => { // crouched, gloves out: the moment of the strike
+      p(4, 0, 4, 2, KH); p(4, 2, 4, 4, KS); p(5, 3, 2, 1, '#2a1a1a'); p(5, 6, 2, 1, KS);
+      p(3, 7, 6, 7, KJ); p(8, 7, 1, 7, KJd); p(1, 8, 2, 2, KJ); p(9, 8, 2, 2, KJd); p(0, 10, 2, 2, GL); p(10, 10, 2, 2, GL);
+      p(3, 14, 6, 2, '#202028'); p(1, 16, 2, 3, KS); p(9, 16, 2, 3, KS);
+      p(1, 19, 2, 3, KJd); p(9, 19, 2, 3, KJd); p(0, 22, 3, 2, '#151515'); p(9, 22, 3, 2, '#151515');
     }),
     stretch: mk(12, 32, (p) => { // arms overhead; rotated along the dive line
       p(1, 0, 3, 3, GL); p(8, 0, 3, 3, GL); p(2, 3, 2, 7, KJ); p(8, 3, 2, 7, KJd);
@@ -645,6 +653,15 @@
       else if (pose === 'run') { // non-kicking arm forward, other back, kicking foot up behind
         p(3, 7, 1, 3, S); p(3, 10, 1, 2, SK); p(12, 7, 1, 4, S); p(13, 11, 1, 4, SK); leg(5);
         p(9, 22, 2, 3, SK); p(10, 25, 2, 2, SK); p(10, 27, 2, 2, h.socks); p(10, 29, 3, 2, BT);
+      } else if (pose === 'pass') { // mid-stride: legs passing under the body
+        p(3, 7, 1, 4, S); p(12, 7, 1, 4, S); p(3, 11, 1, 3, SK); p(12, 11, 1, 3, SK); leg(6);
+        p(8, 22, 2, 4, SK); p(8, 26, 2, 3, h.socks); p(7, 29, 3, 2, BT);
+      } else if (pose === 'plant') { // wind-up: plant foot down, kicking foot cocked high behind, arm out for balance
+        p(1, 8, 2, 2, S); p(0, 9, 1, 3, SK); p(12, 7, 1, 4, S); p(13, 11, 1, 3, SK); leg(5);
+        p(9, 22, 2, 2, SK); p(10, 20, 2, 3, SK); p(10, 18, 2, 2, h.socks); p(10, 16, 3, 2, BT);
+      } else if (pose === 'follow') { // follow-through: kicking leg swung across, both arms out, up on the toes
+        p(1, 7, 2, 2, S); p(0, 6, 1, 2, SK); p(13, 7, 2, 2, S); p(15, 6, 1, 2, SK); leg(5);
+        p(3, 19, 2, 2, h.socks); p(1, 19, 2, 2, BT);
       } else if (pose === 'run2') {
         p(12, 7, 1, 3, S); p(12, 10, 1, 2, SK); p(3, 7, 1, 4, S); p(2, 11, 1, 4, SK); leg(9);
         p(5, 22, 2, 3, SK); p(4, 25, 2, 2, SK); p(4, 27, 2, 2, h.socks); p(3, 29, 3, 2, BT);
@@ -661,7 +678,11 @@
 
   let DEF = [];
   function makeDefenders() {
-    DEF = world.wall.map((_, i) => { const s = SKINS[(i * 3 + world.L.n) & 3], h = HAIRS[(i + world.L.n * 2) & 3]; return [defender(s, h, false), defender(s, h, true)]; });
+    DEF = world.wall.map((_, i) => {
+      const s = SKINS[(i * 3 + world.L.n) & 3], h = HAIRS[(i + world.L.n * 2) & 3], o = {};
+      for (const pose of ['stand', 'jump', 'crouch', 'head', 'cheer']) o[pose] = defender(s, h, pose);
+      return o;
+    });
   }
 
   // football: per-pixel sphere, truncated-icosahedron panels from pentagon/hexagon centre directions
@@ -815,6 +836,14 @@
   // saved progress: best score, furthest level, best stars per level, chosen ball. Anything unreadable starts fresh.
   let far = 0, starsBy = {}, skin = 0, streak = 0, runCheat = false, cheatKick = false, xp = 0, runXp = 0;
   let shake = 0, timeScale = 1, trail = [], confetti = [];
+  let parts = [], ripples = [], squash = 0, fade = 1, flash = 0, shownScore = 0, kCheer = false; // animation state
+  function puff(x, y, z, n, cols, spd, up) { // little burst of pixels at a world point: dust, sparks, net threads
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * 6.283, v = spd * (0.4 + Math.random() * 0.6);
+      parts.push({ x, y, z, vx: Math.cos(a) * v, vy: up * (0.5 + Math.random()), vz: Math.sin(a) * v, life: 0.3 + Math.random() * 0.3, c: cols[i % cols.length] });
+    }
+  }
+  const GRASS_C = ['#58b858', '#3d9b3d', '#e6eee6'], DUST = ['#8a7a50', '#5a9a4a', '#b0a070'], SPARK = ['#ffffff', '#ffe060', '#ffb030'];
   try {
     const d = JSON.parse(localStorage.getItem('rfk-save') || 'null');
     if (d && typeof d === 'object') {
@@ -834,7 +863,9 @@
   function selectHero(i) {
     hero = i;
     const h = HEROES[i];
-    HS = { stance: heroSprite(h, h.stance), stand: heroSprite(h, 'stand'), run: heroSprite(h, 'run'), run2: heroSprite(h, 'run2'), kick: heroSprite(h, 'kick') };
+    HS = {};
+    for (const pose of ['stand', 'run', 'pass', 'run2', 'plant', 'kick', 'follow']) HS[pose] = heroSprite(h, pose);
+    HS.stance = heroSprite(h, h.stance);
     applyPerks(); pickStyle(h.style);
   }
   function makeWorld() {
@@ -849,7 +880,7 @@
     seed = (Math.random() * 2147483647) | 0; moving = false;
     makeWorld();
     makeDefenders(); frameCam(); nd.fill(0); nv.fill(0);
-    state = 'aim'; levelT = 0; stateT = 0; acc = 0; whistled = false; ptr = null; trail = [];
+    state = 'aim'; levelT = 0; stateT = 0; acc = 0; whistled = false; ptr = null; trail = []; fade = 0.8; kCheer = false; parts = [];
     showMsg('LEVEL ' + (level + 1), Math.round(world.L.dist) + 'M ' + sideName() + ' - ' + world.L.wallN + ' IN WALL', '#ffffff', 1.8, 4, starsBy[level] || 0);
   }
   function startGame(n) { level = n; lives = maxLives(); score = 0; streak = 0; runCheat = false; runXp = 0; spot = null; applyPerks(); setupLevel(); }
@@ -865,7 +896,7 @@
     const r = world.result, e = world.ev, st = world.st;
     if (r === 'goal') {
       const base = 100 + Math.round((world.L.dist - 18) * 10) + (e.target ? 200 : 0) + (e.post ? 50 : 0) + (st.late || st.knuckle ? 50 : 0);
-      excite = 1; shake = 4; sfx('cheer'); burstConfetti();
+      excite = 1; shake = 4; flash = 0.55; sfx('cheer'); burstConfetti();
       const how = e.target ? 'TOP BINS! ' : e.post ? 'IN OFF THE POST! ' : st.knuckle ? 'KNUCKLEBALL! ' : st.late ? 'TRIVELA! ' : '';
       if (cheatKick) { // cheats score points but earn no stars, streak or best score
         score += base; runCheat = true;
@@ -899,16 +930,17 @@
   }
   function advance() {
     if (world.result === 'goal') { level++; lives = maxLives(); spot = null; if (level > far) { far = level; persist(); } setupLevel(); } // 3 balls per level, refilled on every goal
-    else if (--lives <= 0) { state = 'over'; stateT = 0; msg = null; }
+    else if (--lives <= 0) { state = 'over'; stateT = 0; msg = null; fade = 0.7; }
     else setupLevel();
   }
   function handle(evs) {
     for (const e of evs) {
-      if (e === 'post') { sfx('clank'); shake = 5; }
-      else if (e === 'wall') sfx('thud');
-      else if (e === 'save') sfx('save');
-      else if (e === 'bounce') sfx('bounce');
-      else if (e === 'net') { sfx('net'); netHit(world.ball.x, world.ball.y, 9); shake = Math.max(shake, 2); }
+      const b = world.ball;
+      if (e === 'post') { sfx('clank'); shake = 5; squash = 0.09; puff(b.x, b.y, b.z, 14, SPARK, 3, 2); }
+      else if (e === 'wall') { sfx('thud'); squash = 0.09; puff(b.x, b.y, b.z, 8, ['#d42a34', '#ffffff'], 1.5, 1.5); }
+      else if (e === 'save') { sfx('save'); squash = 0.09; puff(b.x, b.y, b.z, 12, ['#ffffff', '#8ad0ff', '#ffffff'], 2.5, 1.5); }
+      else if (e === 'bounce') { sfx('bounce'); squash = 0.09; puff(b.x, 0.02, b.z, 6, DUST, 0.8, 1); }
+      else if (e === 'net') { sfx('net'); netHit(b.x, b.y, 9); shake = Math.max(shake, 2); puff(b.x, b.y, b.z, 8, ['#ffffff', '#d8d8e8'], 1.2, 0.5); }
       else if (e === 'sidenet') sfx('net');
       else if (e === 'result') onResult();
     }
@@ -921,16 +953,17 @@
     initAudio(); lastTouch = tnow;
     if (ptr) return;
     const [x, y] = loc(e);
+    ripples.push({ x, y, t: 0 });
     if (state === 'heroes') {
       const col = Math.floor((x - 3) / 89), row = Math.floor((y - 34) / 90);
       if (y >= 34 && y < 304 && col >= 0 && col < 3) { selectHero(row * 3 + col); persist(); return; }
       if (y >= 370 && y < 400) return startGame(far);
-      if (y >= 404 && y < 424) state = 'title';
+      if (y >= 404 && y < 424) { state = 'title'; fade = 0.6; }
       return;
     }
     if (state === 'title') {
       if (y >= 282 && y < 300) return startGame(0); // NEW GAME
-      if (y >= 326 && y < 344) { state = 'heroes'; return; } // PLAYER
+      if (y >= 326 && y < 344) { state = 'heroes'; fade = 0.6; return; } // PLAYER
       if (y >= 304 && y < 322) { // cycle through unlocked balls
         do skin = (skin + 1) % BALL_SKINS.length; while (!unlocked(skin));
         useSkin(skin); persist(); return;
@@ -939,7 +972,7 @@
     }
     if (state === 'over') {
       if (stateT < 0.8) return;
-      if (y >= 290 && y < 308) { state = 'title'; return; } // MENU
+      if (y >= 290 && y < 308) { state = 'title'; fade = 0.6; return; } // MENU
       return startGame(level); // RETRY this level
     }
     if (state === 'result') { if (stateT > 0.9) advance(); return; }
@@ -1072,7 +1105,8 @@
     if (state === 'aim' || state === 'title' || k.state === 'idle' || k.state === 'ready' || k.state === 'watch') {
       const sway = state === 'aim' || state === 'title' || state === 'runup' ? Math.sin(tnow * 1.3) * 0.15 : 0;
       const bob = (Math.floor(tnow * 2.5) & 1) * 0.05;
-      upright(KEEP.idle, k.x + sway, 0, k.z, k.state === 'ready' ? 1.92 : 2.12 - bob);
+      const set = k.state === 'ready' || (state === 'runup' && stateT > HEROES[hero].runT - 0.25); // crouches as the kicker arrives
+      upright(set ? KEEP.set : KEEP.idle, k.x + sway, 0, k.z, set ? 1.9 : 2.12 - bob);
     } else if (k.state === 'block') upright(KEEP.block, k.ax, 0, k.z, 2.1);
     else { // dive: stretch sprite laid along feet -> hands
       const a = proj(k.ax, k.ay, k.z), b = proj(k.bx, k.by, k.z);
@@ -1100,8 +1134,9 @@
     ctx.globalAlpha = 1;
     const s = Math.max(2, Math.round(2 * R * p[2])), x = Math.round(p[0] - s / 2), y = Math.round(p[1] - s / 2);
     if (s < 5) { ctx.fillStyle = '#ffffff'; ctx.fillRect(x, y, s, s); if (s > 2) { ctx.fillStyle = '#8e96a8'; ctx.fillRect(x + s - 1, y + s - 1, 1, 1); } return; }
-    const set = Math.abs(b.sy) > Math.hypot(b.sx, b.sz) ? BALL.y : BALL.x;
-    ctx.drawImage(set[((Math.floor((b.rot / (Math.PI * 2)) * 16) % 16) + 16) % 16], x, y, s, s);
+    const set = Math.abs(b.sy) > Math.hypot(b.sx, b.sz) ? BALL.y : BALL.x, q = squash / 0.09; // squash on impacts
+    const sw = Math.round(s * (1 + 0.35 * q)), sh = Math.round(s * (1 - 0.25 * q));
+    ctx.drawImage(set[((Math.floor((b.rot / (Math.PI * 2)) * 16) % 16) + 16) % 16], Math.round(p[0] - sw / 2), Math.round(p[1] - sh / 2), sw, sh);
   }
   function kickerPos() { // stands at his own spot, runs in to plant beside the ball; left-footers come from the right
     const h = HEROES[hero], s = world.start, fx = Math.sin(world.yaw0), fz = Math.cos(world.yaw0);
@@ -1115,9 +1150,22 @@
     const p = proj(x, 0, z);
     if (!p || p[3] < 2.2) return; // the dollying camera passes him: don't blow him up across the screen
     const h = HEROES[hero], run = state === 'runup', after = state === 'flight' || state === 'result';
-    const spr = run ? (Math.floor(stateT / h.stepT) & 1 ? HS.run2 : HS.run) : state === 'flight' && stateT < 0.35 ? HS.kick : after ? HS.stand : HS.stance;
+    // run-up: 4-frame stride cycle, then the wind-up; contact, follow-through, then standing; breathing while he waits
+    const spr = run ? (h.runT - stateT < 0.12 ? HS.plant : [HS.run, HS.pass, HS.run2, HS.pass][Math.floor(stateT / (h.stepT / 2)) & 3])
+      : state === 'flight' && stateT < 0.12 ? HS.kick : state === 'flight' && stateT < 0.5 ? HS.follow : after ? HS.stand : HS.stance;
+    const lift = run ? Math.abs(Math.sin((stateT * Math.PI) / h.stepT)) * 0.06 : !after && Math.sin(tnow * 2.4) > 0.5 ? 0.012 : 0;
     shadow(x, z, 0.35, 0.3);
-    upright(spr, x, run ? Math.abs(Math.sin((stateT * Math.PI) / h.stepT)) * 0.06 : 0, z, 2.05);
+    upright(spr, x, lift, z, 2.05);
+  }
+  function wallPose(d, i) {
+    if (state === 'result' && stateT > 0.35 + i * 0.06) return world.result === 'goal' ? 'head' : 'cheer'; // react, one by one
+    if (state === 'flight' || state === 'result') {
+      const t = world.ft;
+      if (d.y > 0.02) return 'jump';
+      if (t < d.jt || (t > d.jt + 0.55 && t < d.jt + 0.7)) return 'crouch'; // load up, then land
+    }
+    if (state === 'runup' && stateT > HEROES[hero].runT - 0.15) return 'crouch';
+    return 'stand';
   }
   function wallPos(d, i) { // during the first second the wall shuffles across into its line
     if (state !== 'aim' && state !== 'title') return [d.x, d.y, d.z];
@@ -1147,11 +1195,22 @@
     add(0, GH, 0, drawBar);
     if (world.L.targets) add(0, GH - 0.5, 0.05, drawTargets);
     add((k.ax + k.bx) / 2, 1, k.z, drawKeeper);
-    wp.forEach((p, i) => add(p[0], 1, p[2], () => upright(DEF[i][world.wall[i].y > 0.02 ? 1 : 0], p[0], p[1], p[2], 2.0)));
+    wp.forEach((p, i) => add(p[0], 1, p[2], () => {
+      const pose = wallPose(world.wall[i], i), bob = pose === 'cheer' ? Math.abs(Math.sin(tnow * 9 + i * 1.3)) * 0.1 : 0;
+      upright(DEF[i][pose], p[0], p[1] + bob, p[2], 2.0);
+    }));
     add(b.x, b.y, b.z, drawBall);
     const kp = kickerPos();
     add(kp[0], 1, kp[1], () => drawKicker(kp[0], kp[1]));
     items.sort((p, q) => q[0] - p[0]).forEach((it) => it[1]());
+    parts.forEach((q) => { // impact particles
+      const t = proj(q.x, q.y, q.z);
+      if (!t) return;
+      const sz = Math.max(1, Math.min(3, Math.round(t[2] * 0.045)));
+      ctx.globalAlpha = Math.min(1, q.life * 3); ctx.fillStyle = q.c;
+      ctx.fillRect(Math.round(t[0]), Math.round(t[1]), sz, sz);
+    });
+    ctx.globalAlpha = 1;
 
     if (state === 'aim' || state === 'runup') { // dotted launch arc for the first few metres
       const pts = Sim.preview(world, shot, (rank() >= 6 ? world.L.dist + 3 : rank() >= 1 ? 12 : 7) + (HEROES[hero].guide || 0)); // guide perks
@@ -1183,7 +1242,7 @@
   function hud() {
     const L = world.L, wx = L.wind.x, wz = L.wind.z;
     const X = wx * cam.r[0] + wz * cam.r[2], Zc = wx * cam.f[0] + wz * cam.f[2], l = Math.hypot(X, Zc) || 1, dx = Math.round((X / l) * 20) / 20, dy = Math.round((-Zc / l) * 20) / 20;
-    cached(HUD_L, [L.n, L.dist, L.ang, score, best, lives, dx, dy, moving, shot.mega, shot.insane, shot.assist, streak, skin, xp].join(), 0, 56, () => drawHud(dx, dy));
+    cached(HUD_L, [L.n, L.dist, L.ang, shownScore, best, lives, dx, dy, moving, shot.mega, shot.insane, shot.assist, streak, skin, xp].join(), 0, 56, () => drawHud(dx, dy));
   }
   function drawHud(dx, dy) {
     CHIPS.forEach(([label, key], i) => {
@@ -1194,7 +1253,7 @@
     const L = world.L;
     text('LV ' + (L.n + 1), 4, 4, 2);
     text(Math.round(L.dist) + 'M ' + sideName(), 4, 17, 1, '#c8e8ff');
-    text('SCORE ' + score, W - 4, 4, 1, '#ffe040', 1);
+    text('SCORE ' + shownScore, W - 4, 4, 1, '#ffe040', 1);
     text('BEST ' + best, W - 4, 12, 1, '#a0a8c0', 1);
     for (let i = 0; i < lives; i++) ctx.drawImage(BALL.x[0], W - 11 - i * 9, 20, 7, 7);
     text(Sim.RANKS[rank()].name, W - 4, CHIP_Y + 16, 1, '#60e0ff', 1);
@@ -1264,6 +1323,17 @@
     text(nx ? xp + '/' + nx.xp + 'XP - NEXT: ' + nx.perk : 'MAX RANK - ALL PERKS', W / 2, y + 25, 1, '#a0a8c0', 0.5);
   }
   function overlays() {
+    drawOverlays();
+    ripples.forEach((r) => { // touch ripple: buttons feel pressed
+      const rad = 2 + r.t * 45;
+      ctx.globalAlpha = 1 - r.t / 0.3; ctx.fillStyle = '#ffffff';
+      for (let i = 0; i < 16; i++) { const a = (i / 16) * 6.283; ctx.fillRect(Math.round(r.x + Math.cos(a) * rad), Math.round(r.y + Math.sin(a) * rad), 1, 1); }
+    });
+    ctx.globalAlpha = 1;
+    if (flash > 0) { ctx.fillStyle = 'rgba(255,255,255,' + flash + ')'; ctx.fillRect(0, 0, W, H); }
+    if (fade > 0) { ctx.fillStyle = 'rgba(0,0,0,' + fade + ')'; ctx.fillRect(0, 0, W, H); }
+  }
+  function drawOverlays() {
     confetti.forEach((c) => { ctx.fillStyle = c.c; ctx.fillRect(Math.round(c.x), Math.round(c.y), 2, Math.sin(c.ph) > 0 ? 2 : 1); });
     if (msg && msg.t < msg.dur) {
       const sc = Math.max(msg.sc, Math.round(msg.sc + 3 - msg.t * 20)), y = 168, h = sc * 5 + (msg.sub ? 26 : 12) + (msg.st >= 0 ? 18 : 0) + (msg.extra ? 10 : 0);
@@ -1282,7 +1352,7 @@
       HEROES.forEach((h, i) => {
         const x = 3 + (i % 3) * 89, y = 34 + ((i / 3) | 0) * 90, sel = i === hero;
         bevel(x, y, 86, 86, sel ? '#3a3010' : '#1a1e40', sel ? '#ffe060' : '#4a56a0', sel ? '#a07800' : '#0a0c1c');
-        ctx.drawImage(cards[i], x + 25, y + 4, 36, 70);
+        ctx.drawImage(cards[i], x + 25, y + 4 - (sel && Math.sin(tnow * 3) > 0 ? 2 : 0), 36, 70); // the picked one breathes
         text(h.name, x + 43, y + 77, 1, sel ? '#ffe060' : '#ffffff', 0.5);
         text(h.foot, x + 81, y + 4, 1, '#60e0ff', 1);
       });
@@ -1297,8 +1367,8 @@
     if (state === 'title' || state === 'over') {
       ctx.fillStyle = 'rgba(6,8,24,0.72)'; ctx.fillRect(0, 0, W, H);
       if (state === 'title') {
-        text('RETRO', W / 2, 52, 7, '#ffe040', 0.5);
-        text('FREE KICK', W / 2, 94, 4, '#ffffff', 0.5);
+        text('RETRO', W / 2, 52 + Math.round(Math.sin(tnow * 2) * 2), 7, '#ffe040', 0.5);
+        text('FREE KICK', W / 2, 94 + Math.round(Math.sin(tnow * 2 + 0.8) * 2), 4, '#ffffff', 0.5);
         ctx.drawImage(BALL.x[Math.floor(tnow * 10) & 15], W / 2 - 18, 122, 36, 36);
         ctx.drawImage(STAR_ON, W / 2 - 52, 164, 14, 14);
         text(totalStars() + ' STARS   BEST ' + best, W / 2 - 34, 168, 1, '#ffe060');
@@ -1330,8 +1400,25 @@
     if (msg) msg.t += dt;
     if (hint) hint.t += dt;
     if (state === 'aim' && levelT > 0.4 && !whistled) { whistled = true; sfx('whistle'); }
-    if (state === 'runup' && stateT >= HEROES[hero].runT) { Sim.kick(world, shot); state = 'flight'; stateT = 0; acc = 0; sfx('kick'); }
+    if (state === 'runup' && stateT >= HEROES[hero].runT) {
+      Sim.kick(world, shot); state = 'flight'; stateT = 0; acc = 0; sfx('kick');
+      squash = 0.09; puff(world.ball.x, 0.05, world.ball.z, 14, GRASS_C, 1.2, 1.6);
+    }
     shake = Math.max(0, shake - dt * 20);
+    squash = Math.max(0, squash - dt); fade = Math.max(0, fade - dt * 3.5); flash = Math.max(0, flash - dt * 4);
+    for (const q of parts) { q.vy -= 6 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt; q.life -= dt; if (q.y < 0) { q.y = 0; q.vy *= -0.3; q.vx *= 0.5; q.vz *= 0.5; } }
+    parts = parts.filter((q) => q.life > 0);
+    for (const r of ripples) r.t += dt;
+    ripples = ripples.filter((r) => r.t < 0.3);
+    shownScore = score < shownScore ? score : shownScore + Math.ceil((score - shownScore) * Math.min(1, dt * 6)); // score counts up
+    if (state === 'flight' || state === 'result') {
+      const k = world.keeper;
+      if (/low|mid|high/.test(k.state) && k.by < 0.5 && !k.landed) { k.landed = true; puff(k.bx, 0.05, k.z, 10, DUST, 1, 1); } // dive lands
+      if (state === 'result' && world.result === 'save' && stateT > 0.5 && !kCheer) { // keeper gets up and celebrates, ball overhead if caught
+        kCheer = true; k.px = k.bx; k.tx = k.bx; k.ty = 2.35; k.tArr = 1e9;
+        if (!/low|mid|high/.test(k.state)) k.state = 'mid';
+      }
+    }
     for (const c of confetti) { c.x += c.vx * dt + Math.sin(c.ph) * 0.5; c.y += c.vy * dt; c.ph += dt * 8; }
     confetti = confetti.filter((c) => c.y < H);
     if (state === 'flight' || state === 'result') {
@@ -1361,7 +1448,7 @@
   makeDefenders();
   frameCam();
   // battery: a still screen nobody has touched for 20 s draws every 4th frame; any touch is back to full rate next frame
-  const idle = () => (state === 'title' || state === 'over' || state === 'aim' || state === 'heroes') && !ptr && tnow - lastTouch > 20 && excite < 0.05 && !confetti.length;
+  const idle = () => (state === 'title' || state === 'over' || state === 'aim' || state === 'heroes') && !ptr && tnow - lastTouch > 20 && excite < 0.05 && !confetti.length && !parts.length && !ripples.length && fade <= 0 && flash <= 0;
   let last = performance.now(), pending = 0, frameNo = 0;
   function frame(now) {
     requestAnimationFrame(frame); // first, so one bad frame can't freeze the game
