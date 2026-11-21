@@ -303,7 +303,13 @@
     }
   }
 
-  const Sim = { STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview, speed: speedOf };
+  // progression rules (pure, tested in node)
+  // stars: 1 = goal, 2 = with the first ball of the level, 3 = first ball + top bins / in off the post / trivela / knuckle
+  const stars = (w, firstBall) => (w.result !== 'goal' ? 0 : 1 + (firstBall ? 1 : 0) + (firstBall && (w.ev.target || w.ev.post || w.st.late || w.st.knuckle) ? 1 : 0));
+  const multiplier = (streak) => Math.min(5, 1 + streak); // points multiplier for the next goal
+  const missBy = (w) => (w.ev.out ? Math.max(0, Math.max(Math.abs(w.ev.out.x) - HW, w.ev.out.y - GH) - R - PR) : null); // gap between ball and frame, m
+
+  const Sim = { stars, multiplier, missBy, STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview, speed: speedOf };
   if (typeof module !== 'undefined' && module.exports) { module.exports = Sim; return; }
 
   // =================================================================== BROWSER
@@ -597,6 +603,9 @@
   }
   const KICKER = { stand: kicker('stand'), run: kicker('run'), run2: kicker('run2'), kick: kicker('kick') };
   const RUN_T = 0.45; // run-up time; the ball leaves at foot contact
+  const starIcon = (c) => mk(5, 5, (p) => { p(2, 0, 1, 1, c); p(1, 1, 3, 1, c); p(0, 2, 5, 1, c); p(1, 3, 3, 1, c); p(1, 4, 1, 1, c); p(3, 4, 1, 1, c); });
+  const STAR_ON = starIcon('#ffd020'), STAR_OFF = starIcon('#3a3a5a');
+  function drawStars(n, x, y, sc) { for (let i = 0; i < 3; i++) ctx.drawImage(i < n ? STAR_ON : STAR_OFF, Math.round(x + (i - 1.5) * 8 * sc), y, 7 * sc, 7 * sc); }
 
   let DEF = [];
   function makeDefenders() {
@@ -611,9 +620,15 @@
     HEXD.push(nrm([0, a / PHI, b * PHI]), nrm([a / PHI, b * PHI, 0]), nrm([b * PHI, 0, a / PHI]));
     for (const c of [-1, 1]) HEXD.push(nrm([a, b, c]));
   }
-  const WHT = ['#ffffff', '#d0d6e0', '#8e96a8'].map(hex), BLK = ['#3a3a4c', '#262636', '#14141e'].map(hex);
-  const SEAM = ['#9aa0b0', '#787e90', '#585e70'].map(hex), BOUT = hex('#181020');
-  function ballCanvas(S, ang, axisX) {
+  const BOUT = hex('#181020');
+  // ball skins, unlocked by total stars
+  const BALL_SKINS = [
+    { name: 'CLASSIC', need: 0, w: ['#ffffff', '#d0d6e0', '#8e96a8'], b: ['#3a3a4c', '#262636', '#14141e'], s: ['#9aa0b0', '#787e90', '#585e70'], trail: '#ffffff' },
+    { name: 'GOLD', need: 10, w: ['#fff0a0', '#f0c040', '#b08010'], b: ['#8a5410', '#6a3c08', '#402404'], trail: '#ffd040' },
+    { name: 'FIRE', need: 25, w: ['#ffd060', '#ff8020', '#c03810'], b: ['#d01818', '#901010', '#500808'], trail: '#ff6020' },
+    { name: 'NEON', need: 50, w: ['#a0ffff', '#40d0f0', '#1880b0'], b: ['#ff50d0', '#c020a0', '#801070'], trail: '#60ffff' },
+  ];
+  function ballCanvas(S, ang, axisX, pal) {
     const c = document.createElement('canvas');
     c.width = c.height = S;
     const g = c.getContext('2d'), d = g.createImageData(S, S), px = new Uint32Array(d.data.buffer);
@@ -628,14 +643,19 @@
       for (const v of PENT) p = Math.max(p, v[0] * X + v[1] * Y + v[2] * Z);
       for (const v of HEXD) { const q = v[0] * X + v[1] * Y + v[2] * Z; if (q > h1) { h2 = h1; h1 = q; } else if (q > h2) h2 = q; }
       const L = -0.45 * nx + 0.55 * ny + 0.7 * nz, lv = L > 0.55 ? 0 : L > 0.15 ? 1 : 2, k = p - h1 - 0.023;
-      px[y * S + x] = d2 > edge ? BOUT : Math.abs(k) < 0.014 || (k < 0 && h1 - h2 < 0.012) ? SEAM[lv] : k > 0 ? BLK[lv] : WHT[lv];
+      px[y * S + x] = d2 > edge ? BOUT : Math.abs(k) < 0.014 || (k < 0 && h1 - h2 < 0.012) ? pal.s[lv] : k > 0 ? pal.b[lv] : pal.w[lv];
     }
     g.putImageData(d, 0, 0);
     return c;
   }
-  const BALL = { x: [], y: [] };
-  for (let i = 0; i < 16; i++) { BALL.x.push(ballCanvas(24, (i / 16) * Math.PI * 2, true)); BALL.y.push(ballCanvas(24, (i / 16) * Math.PI * 2, false)); }
-  const WIDGET = ballCanvas(WR * 2, 0.35, true);
+  let BALL, WIDGET;
+  function useSkin(i) {
+    const k = BALL_SKINS[i], pal = { w: k.w.map(hex), b: k.b.map(hex), s: (k.s || [k.w[1], k.w[2], k.b[0]]).map(hex) };
+    BALL = { x: [], y: [] };
+    for (let j = 0; j < 16; j++) { BALL.x.push(ballCanvas(24, (j / 16) * Math.PI * 2, true, pal)); BALL.y.push(ballCanvas(24, (j / 16) * Math.PI * 2, false, pal)); }
+    WIDGET = ballCanvas(WR * 2, 0.35, true, pal);
+    HUD_L.key = UI_L.key = null; // both cached layers show the ball
+  }
 
   // ------------------------------------------------------------------ 3x5 pixel font
   const FONT = {
@@ -727,6 +747,9 @@
     thud() { tone('sine', 130, 50, 0.12, 0.5); burst(0.06, 0.25, 'lowpass', 700); },
     bounce() { tone('sine', 110, 50, 0.08, 0.3); },
     save() { tone('sine', 150, 60, 0.12, 0.5); burst(0.1, 0.3, 'lowpass', 900); },
+    stars1() { tone('square', 988, 988, 0.12, 0.06); },
+    stars2() { [988, 1319].forEach((f, i) => tone('square', f, f, 0.12, 0.06, i * 0.25)); },
+    stars3() { [988, 1319, 1976].forEach((f, i) => tone('square', f, f, 0.14, 0.06, i * 0.25)); },
   };
   const sfx = (n) => { if (AC) SFX[n](); };
   document.addEventListener('visibilitychange', () => { if (AC) (document.hidden ? AC.suspend() : AC.resume()); });
@@ -737,52 +760,83 @@
   const shot = { style: 1, aim: 0, power: 0.6, u: STYLES[1].u, v: STYLES[1].v, mega: false, insane: false, assist: false };
   let spot = null, seed = 1, moving = false; // player-chosen kick spot for the current level
   const CHIPS = [['MOVE', 'move'], ['1000KM/H', 'mega'], ['MEGA CURVE', 'insane'], ['AIM ASSIST', 'assist']], CHIP_Y = 32;
-  try { best = +localStorage.getItem('rfk-best') || 0; } catch (_) {}
-  const saveBest = () => { try { localStorage.setItem('rfk-best', String(best)); } catch (_) {} };
-  const showMsg = (big, sub, col, dur = 2.6, sc = 5) => (msg = { t: 0, big, sub, col, dur, sc });
+  // saved progress: best score, furthest level, best stars per level, chosen ball. Anything unreadable starts fresh.
+  let far = 0, starsBy = {}, skin = 0, streak = 0, runCheat = false, cheatKick = false;
+  let shake = 0, timeScale = 1, trail = [], confetti = [];
+  try {
+    const d = JSON.parse(localStorage.getItem('rfk-save') || 'null');
+    if (d && typeof d === 'object') {
+      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
+      if (d.stars && typeof d.stars === 'object') for (const k in d.stars) starsBy[k] = clamp(d.stars[k] | 0, 0, 3);
+    } else best = +localStorage.getItem('rfk-best') || 0; // pre-progression saves kept only the best score
+  } catch (_) {}
+  const persist = () => { try { localStorage.setItem('rfk-save', JSON.stringify({ best, far, stars: starsBy, skin })); } catch (_) {} };
+  const totalStars = () => Object.keys(starsBy).reduce((a, k) => a + starsBy[k], 0);
+  const unlocked = (i) => totalStars() >= BALL_SKINS[i].need;
+  if (!unlocked(skin)) skin = 0;
+  const showMsg = (big, sub, col, dur = 2.6, sc = 5, st = -1, extra = '') => (msg = { t: 0, big, sub, col, dur, sc, st, extra });
   const sideName = () => (world.L.ang < -5 ? 'LEFT' : world.L.ang > 5 ? 'RIGHT' : 'CENTRE');
 
   function setupLevel() {
     seed = (Math.random() * 2147483647) | 0; moving = false;
     world = Sim.newWorld(level, seed, spot);
     makeDefenders(); frameCam(); nd.fill(0); nv.fill(0);
-    state = 'aim'; levelT = 0; stateT = 0; acc = 0; whistled = false; ptr = null;
-    showMsg('LEVEL ' + (level + 1), Math.round(world.L.dist) + 'M ' + sideName() + ' - ' + world.L.wallN + ' IN WALL', '#ffffff', 1.6, 4);
+    state = 'aim'; levelT = 0; stateT = 0; acc = 0; whistled = false; ptr = null; trail = [];
+    showMsg('LEVEL ' + (level + 1), Math.round(world.L.dist) + 'M ' + sideName() + ' - ' + world.L.wallN + ' IN WALL', '#ffffff', 1.8, 4, starsBy[level] || 0);
   }
-  function startGame() { level = 0; lives = 3; score = 0; spot = null; setupLevel(); }
+  function startGame(n) { level = n; lives = 3; score = 0; streak = 0; runCheat = false; spot = null; setupLevel(); }
   function placeBall(dist, ang) { spot = { dist, ang }; world = Sim.newWorld(level, seed, spot); frameCam(); }
   function pickStyle(i) { shot.style = i; shot.u = STYLES[i].u; shot.v = STYLES[i].v; hint = { t: 0, s: STYLES[i].name + ': ' + STYLES[i].desc }; }
   function doKick() {
     if (state !== 'aim') return;
-    state = 'runup'; stateT = 0; ptr = null; msg = null; moving = false;
+    state = 'runup'; stateT = 0; ptr = null; msg = null; moving = false; trail = [];
+    cheatKick = shot.mega || shot.insane || shot.assist;
   }
   function onResult() {
     state = 'result'; stateT = 0;
     const r = world.result, e = world.ev, st = world.st;
     if (r === 'goal') {
-      const pts = 100 + Math.round((world.L.dist - 18) * 10) + (e.target ? 200 : 0) + (e.post ? 50 : 0) + (st.late || st.knuckle ? 50 : 0);
-      score += pts; excite = 1; sfx('cheer');
-      if (score > best) { best = score; saveBest(); }
-      showMsg('GOAL!', (e.target ? 'TOP BINS! ' : e.post ? 'IN OFF THE POST! ' : st.knuckle ? 'KNUCKLEBALL! ' : '') + '+' + pts, '#ffe040');
+      const base = 100 + Math.round((world.L.dist - 18) * 10) + (e.target ? 200 : 0) + (e.post ? 50 : 0) + (st.late || st.knuckle ? 50 : 0);
+      excite = 1; shake = 4; sfx('cheer'); burstConfetti();
+      const how = e.target ? 'TOP BINS! ' : e.post ? 'IN OFF THE POST! ' : st.knuckle ? 'KNUCKLEBALL! ' : st.late ? 'TRIVELA! ' : '';
+      if (cheatKick) { // cheats score points but earn no stars, streak or best score
+        score += base; runCheat = true;
+        return showMsg('GOAL!', how + '+' + base, '#ffe040', 2.6, 5, -1, 'CHEATS ON - NO STARS');
+      }
+      const m = Sim.multiplier(streak), pts = base * m, n = Sim.stars(world, lives === 3), before = totalStars();
+      score += pts; streak++;
+      if (score > best && !runCheat) best = score;
+      if (n > (starsBy[level] || 0)) starsBy[level] = n;
+      const fresh = BALL_SKINS.find((k) => k.need > before && k.need <= totalStars());
+      persist();
+      setTimeout(() => sfx('stars' + n), 350);
+      showMsg('GOAL!', how + '+' + pts + (m > 1 ? ' (X' + m + ')' : ''), '#ffe040', 2.8, 5, n, fresh ? 'NEW BALL UNLOCKED: ' + fresh.name : streak >= 3 ? 'ON FIRE! ' + streak + ' IN A ROW' : '');
     } else {
       sfx('ooh');
-      const left = lives - 1;
-      showMsg({ save: 'SAVED!', wall: 'BLOCKED!', post: 'POST!', over: 'OVER!', wide: 'WIDE!' }[r] || 'MISS!',
-        left > 0 ? left + (left > 1 ? ' BALLS LEFT' : ' BALL LEFT') : 'NO BALLS LEFT', '#ff6a5a');
+      const left = lives - 1, gap = Sim.missBy(world), lost = streak >= 2 ? 'STREAK OF ' + streak + ' LOST' : '';
+      streak = 0;
+      const sub = left > 0 ? left + (left > 1 ? ' BALLS LEFT' : ' BALL LEFT') : 'NO BALLS LEFT';
+      if ((r === 'wide' || r === 'over') && gap !== null && gap < 0.5) // near misses: tell them how near
+        return showMsg('SO CLOSE!', Math.max(1, Math.round(gap * 100)) + 'CM ' + (r === 'over' ? 'OVER' : 'WIDE') + ' - ' + sub, '#ffa040', 2.6, 5, -1, lost);
+      showMsg({ save: 'SAVED!', wall: 'BLOCKED!', post: 'POST!', over: 'OVER!', wide: 'WIDE!' }[r] || 'MISS!', sub, '#ff6a5a', 2.6, 5, -1, lost);
     }
   }
+  function burstConfetti() {
+    const cols = ['#ffd020', '#ff4060', '#40c0ff', '#60ff80', '#ffffff', '#ff8020'];
+    for (let i = 0; i < 70; i++) confetti.push({ x: Math.random() * W, y: -Math.random() * 120, vx: (Math.random() - 0.5) * 40, vy: 30 + Math.random() * 50, c: cols[i % cols.length], ph: Math.random() * 6 });
+  }
   function advance() {
-    if (world.result === 'goal') { level++; lives = 3; spot = null; setupLevel(); } // 3 balls per level, refilled on every goal
+    if (world.result === 'goal') { level++; lives = 3; spot = null; if (level > far) { far = level; persist(); } setupLevel(); } // 3 balls per level, refilled on every goal
     else if (--lives <= 0) { state = 'over'; stateT = 0; msg = null; }
     else setupLevel();
   }
   function handle(evs) {
     for (const e of evs) {
-      if (e === 'post') sfx('clank');
+      if (e === 'post') { sfx('clank'); shake = 5; }
       else if (e === 'wall') sfx('thud');
       else if (e === 'save') sfx('save');
       else if (e === 'bounce') sfx('bounce');
-      else if (e === 'net') { sfx('net'); netHit(world.ball.x, world.ball.y, 9); }
+      else if (e === 'net') { sfx('net'); netHit(world.ball.x, world.ball.y, 9); shake = Math.max(shake, 2); }
       else if (e === 'sidenet') sfx('net');
       else if (e === 'result') onResult();
     }
@@ -795,8 +849,19 @@
     initAudio(); lastTouch = tnow;
     if (ptr) return;
     const [x, y] = loc(e);
-    if (state === 'title') return startGame();
-    if (state === 'over') { if (stateT > 0.8) startGame(); return; }
+    if (state === 'title') {
+      if (y >= 290 && y < 308) return startGame(0); // NEW GAME
+      if (y >= 312 && y < 330) { // cycle through unlocked balls
+        do skin = (skin + 1) % BALL_SKINS.length; while (!unlocked(skin));
+        useSkin(skin); persist(); return;
+      }
+      return startGame(far); // CONTINUE (or anywhere else)
+    }
+    if (state === 'over') {
+      if (stateT < 0.8) return;
+      if (y >= 290 && y < 308) { state = 'title'; return; } // MENU
+      return startGame(level); // RETRY this level
+    }
     if (state === 'result') { if (stateT > 0.9) advance(); return; }
     if (state !== 'aim') return;
     let mode = null;
@@ -943,6 +1008,16 @@
   function drawBall() {
     const b = world.ball, p = proj(b.x, b.y, b.z);
     if (!p) return;
+    const fire = streak >= 3 && !cheatKick; // a hot streak sets the trail alight
+    trail.forEach((q, i) => {
+      const t = proj(q[0], q[1], q[2]);
+      if (!t) return;
+      const sz = Math.max(1, Math.round(2 * R * t[2] * (0.3 + (0.6 * i) / trail.length)));
+      ctx.globalAlpha = (0.15 + (0.6 * i) / trail.length);
+      ctx.fillStyle = fire ? (i & 1 ? '#ff5010' : '#ffd040') : BALL_SKINS[skin].trail;
+      ctx.fillRect(Math.round(t[0] - sz / 2), Math.round(t[1] - sz / 2), sz, sz);
+    });
+    ctx.globalAlpha = 1;
     const s = Math.max(2, Math.round(2 * R * p[2])), x = Math.round(p[0] - s / 2), y = Math.round(p[1] - s / 2);
     if (s < 5) { ctx.fillStyle = '#ffffff'; ctx.fillRect(x, y, s, s); if (s > 2) { ctx.fillStyle = '#8e96a8'; ctx.fillRect(x + s - 1, y + s - 1, 1, 1); } return; }
     const set = Math.abs(b.sy) > Math.hypot(b.sx, b.sz) ? BALL.y : BALL.x;
@@ -972,7 +1047,10 @@
   // ------------------------------------------------------------------ frame
   function render() {
     if (bgDirty || excite > 0) { renderBG(); drawNet(); bgDirty = false; }
-    ctx.putImageData(img, 0, 0);
+    const sx = shake > 0.5 ? Math.round((Math.random() - 0.5) * 2 * shake) : 0, sy = shake > 0.5 ? Math.round((Math.random() - 0.5) * 2 * shake) : 0;
+    if (sx || sy) { ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, W, H); }
+    ctx.putImageData(img, sx, sy);
+    ctx.save(); ctx.translate(sx, sy); // the world shakes, the HUD doesn't
     const b = world.ball, k = world.keeper;
 
     shadow(b.x, b.z, R * 1.2, Math.max(0.1, 0.4 - b.y * 0.05));
@@ -1005,6 +1083,7 @@
       });
       ctx.globalAlpha = 1;
     }
+    ctx.restore();
     hud();
     ui();
     overlays();
@@ -1020,7 +1099,7 @@
   function hud() {
     const L = world.L, wx = L.wind.x, wz = L.wind.z;
     const X = wx * cam.r[0] + wz * cam.r[2], Zc = wx * cam.f[0] + wz * cam.f[2], l = Math.hypot(X, Zc) || 1, dx = Math.round((X / l) * 20) / 20, dy = Math.round((-Zc / l) * 20) / 20;
-    cached(HUD_L, [L.n, L.dist, L.ang, score, best, lives, dx, dy, moving, shot.mega, shot.insane, shot.assist].join(), 0, 48, () => drawHud(dx, dy));
+    cached(HUD_L, [L.n, L.dist, L.ang, score, best, lives, dx, dy, moving, shot.mega, shot.insane, shot.assist, streak, skin].join(), 0, 56, () => drawHud(dx, dy));
   }
   function drawHud(dx, dy) {
     CHIPS.forEach(([label, key], i) => {
@@ -1034,6 +1113,7 @@
     text('SCORE ' + score, W - 4, 4, 1, '#ffe040', 1);
     text('BEST ' + best, W - 4, 12, 1, '#a0a8c0', 1);
     for (let i = 0; i < lives; i++) ctx.drawImage(BALL.x[0], W - 11 - i * 9, 20, 7, 7);
+    if (streak > 0) text('STREAK ' + streak + '  NEXT GOAL X' + Sim.multiplier(streak), 4, CHIP_Y + 16, 1, streak >= 3 ? '#ff8030' : '#ffe060');
     if (L.windSpeed > 0) { // arrow in screen space: up = toward the goal
       const cx = 135, cy = 22;
       text('WIND ' + L.windSpeed.toFixed(1) + 'M/S', cx, 4, 1, '#9ff0ff', 0.5);
@@ -1091,30 +1171,41 @@
   }
 
   function overlays() {
+    confetti.forEach((c) => { ctx.fillStyle = c.c; ctx.fillRect(Math.round(c.x), Math.round(c.y), 2, Math.sin(c.ph) > 0 ? 2 : 1); });
     if (msg && msg.t < msg.dur) {
-      const sc = Math.max(msg.sc, Math.round(msg.sc + 3 - msg.t * 20)), y = 168;
-      ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, y - 6, W, sc * 5 + (msg.sub ? 26 : 12));
+      const sc = Math.max(msg.sc, Math.round(msg.sc + 3 - msg.t * 20)), y = 168, h = sc * 5 + (msg.sub ? 26 : 12) + (msg.st >= 0 ? 18 : 0) + (msg.extra ? 10 : 0);
+      ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, y - 6, W, h);
       text(msg.big, W / 2, y, sc, msg.col, 0.5);
-      if (msg.sub) text(msg.sub, W / 2, y + sc * 5 + 8, 1, '#ffffff', 0.5);
+      let ly = y + sc * 5 + 8;
+      if (msg.sub) { text(msg.sub, W / 2, ly, 1, '#ffffff', 0.5); ly += 10; }
+      if (msg.st >= 0) { drawStars(msg.big === 'GOAL!' ? Math.min(msg.st, Math.floor(msg.t * 4)) : msg.st, W / 2, ly, 2); ly += 18; } // stars pop in one by one
+      if (msg.extra) text(msg.extra, W / 2, ly, 1, '#60e0ff', 0.5);
     }
     if (state === 'title' || state === 'over') {
       ctx.fillStyle = 'rgba(6,8,24,0.72)'; ctx.fillRect(0, 0, W, H);
+      const btn = (label, y, h, hot) => { bevel(50, y, 170, h, hot ? '#c82828' : '#2a3264', hot ? '#ff9090' : '#4a56a0', hot ? '#801010' : '#141834'); text(label, W / 2, y + (h - 5 * (h > 20 ? 2 : 1)) / 2, h > 20 ? 2 : 1, '#ffffff', 0.5); };
       if (state === 'title') {
-        text('RETRO', W / 2, 92, 7, '#ffe040', 0.5);
-        text('FREE KICK', W / 2, 136, 4, '#ffffff', 0.5);
-        ctx.drawImage(BALL.x[Math.floor(tnow * 10) & 15], W / 2 - 24, 176, 48, 48);
-        text('SWIPE UP TO SHOOT', W / 2, 250, 1, '#c8e8ff', 0.5);
-        text('OR SET AIM + POWER, THEN KICK', W / 2, 260, 1, '#c8e8ff', 0.5);
-        text('DRAG THE BALL WIDGET TO PICK', W / 2, 274, 1, '#c8e8ff', 0.5);
-        text('WHERE YOUR BOOT STRIKES IT', W / 2, 284, 1, '#c8e8ff', 0.5);
-        text('BEST ' + best, W / 2, 308, 2, '#a0a8c0', 0.5);
+        text('RETRO', W / 2, 70, 7, '#ffe040', 0.5);
+        text('FREE KICK', W / 2, 114, 4, '#ffffff', 0.5);
+        ctx.drawImage(BALL.x[Math.floor(tnow * 10) & 15], W / 2 - 24, 146, 48, 48);
+        ctx.drawImage(STAR_ON, W / 2 - 52, 210, 14, 14);
+        text(totalStars() + ' STARS   BEST ' + best, W / 2 - 34, 214, 1, '#ffe060');
+        const nx = BALL_SKINS.find((k) => k.need > totalStars());
+        if (nx) text('NEXT BALL: ' + nx.name + ' AT ' + nx.need + ' STARS', W / 2, 232, 1, '#a0a8c0', 0.5);
+        btn(far > 0 ? 'CONTINUE LV ' + (far + 1) : 'PLAY', 256, 28, true);
+        btn('NEW GAME', 290, 18, false);
+        btn('BALL: ' + BALL_SKINS[skin].name + '  >', 312, 18, false);
+        text('SWIPE UP TO SHOOT. DRAG THE BALL', W / 2, 352, 1, '#c8e8ff', 0.5);
+        text('WIDGET TO PICK WHERE YOU STRIKE IT.', W / 2, 362, 1, '#c8e8ff', 0.5);
+        text('GOALS IN A ROW MULTIPLY YOUR POINTS.', W / 2, 376, 1, '#ffe060', 0.5);
       } else {
-        text('FULL TIME', W / 2, 120, 5, '#ff6a5a', 0.5);
-        text('SCORE ' + score, W / 2, 170, 3, '#ffe040', 0.5);
-        text('REACHED LEVEL ' + (level + 1), W / 2, 196, 1, '#ffffff', 0.5);
-        text('BEST ' + best, W / 2, 210, 2, '#a0a8c0', 0.5);
+        text('FULL TIME', W / 2, 110, 5, '#ff6a5a', 0.5);
+        text('SCORE ' + score, W / 2, 160, 3, '#ffe040', 0.5);
+        text(runCheat ? 'CHEATS USED - BEST NOT SAVED' : score >= best && score > 0 ? 'NEW BEST!' : 'BEST ' + best, W / 2, 186, 1, '#ffffff', 0.5);
+        ctx.drawImage(STAR_ON, W / 2 - 30, 204, 14, 14);
+        text(totalStars() + ' STARS', W / 2 - 12, 208, 1, '#ffe060');
+        if (stateT > 0.8) { btn('RETRY LV ' + (level + 1), 256, 28, true); btn('MENU', 290, 18, false); }
       }
-      if (Math.floor(tnow * 2) & 1) text(state === 'title' ? 'TAP TO START' : 'TAP TO PLAY AGAIN', W / 2, 340, 2, '#ffffff', 0.5);
     }
   }
 
@@ -1125,8 +1216,16 @@
     if (hint) hint.t += dt;
     if (state === 'aim' && levelT > 0.4 && !whistled) { whistled = true; sfx('whistle'); }
     if (state === 'runup' && stateT >= RUN_T) { Sim.kick(world, shot); state = 'flight'; stateT = 0; acc = 0; sfx('kick'); }
+    shake = Math.max(0, shake - dt * 20);
+    for (const c of confetti) { c.x += c.vx * dt + Math.sin(c.ph) * 0.5; c.y += c.vy * dt; c.ph += dt * 8; }
+    confetti = confetti.filter((c) => c.y < H);
     if (state === 'flight' || state === 'result') {
-      acc += dt;
+      // slow motion on close calls: near the post or bar, or within reach of the keeper, and just after the ball goes in
+      const b = world.ball, k = world.keeper;
+      const close = state === 'flight' && b.vz > 2 && b.z > -4 && b.z < 0.3 && ((Math.abs(b.x) > HW - 0.8 && Math.abs(b.x) < HW + 0.6) || Math.abs(b.y - GH) < 0.5 || Math.hypot(b.x - k.bx, b.y - k.by) < 1);
+      timeScale += ((close || (world.result === 'goal' && stateT < 0.35) ? 0.3 : 1) - timeScale) * Math.min(1, dt * 12);
+      if (state === 'flight' && !b.held) { trail.push([b.x, b.y, b.z]); if (trail.length > 14) trail.shift(); }
+      acc += dt * timeScale;
       while (acc >= STEP) { acc -= STEP; handle(Sim.step(world, STEP)); netStep(STEP); }
       if (state === 'result' && stateT > 2.8) advance();
     }
@@ -1142,10 +1241,11 @@
   }
 
   world = Sim.newWorld(0, 1);
+  useSkin(skin);
   makeDefenders();
   frameCam();
   // nothing moving but idle animations: ~15 fps instead of 60 to save battery
-  const idle = () => (state === 'title' || state === 'over' || state === 'aim') && !ptr && levelT > 1.3 && excite < 0.05 && !(msg && msg.t < 0.4);
+  const idle = () => (state === 'title' || state === 'over' || state === 'aim') && !ptr && levelT > 1.3 && excite < 0.05 && !confetti.length && !(msg && msg.t < 1);
   let last = performance.now();
   function frame(now) {
     if (idle()) setTimeout(() => requestAnimationFrame(frame), 50); // scheduled first, so one bad frame can't freeze the game

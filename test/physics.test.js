@@ -86,3 +86,21 @@ test('a power shot can clear the wall and dip under the bar from 26 m central', 
   }
   assert.ok(over >= 3, 'only ' + over + ' power shots went over the wall and in');
 });
+
+test('stars: goal 1, first-ball goal 2, first ball plus a trick 3; misses 0', () => {
+  const w = (result, ev = {}, st = {}) => ({ result, ev, st });
+  assert.equal(Sim.stars(w('save'), true), 0);
+  assert.equal(Sim.stars(w('goal'), false), 1);
+  assert.equal(Sim.stars(w('goal', { target: true }), false), 1);
+  assert.equal(Sim.stars(w('goal'), true), 2);
+  for (const [ev, st] of [[{ target: true }, {}], [{ post: 1 }, {}], [{}, { late: true }], [{}, { knuckle: true }]])
+    assert.equal(Sim.stars(w('goal', ev, st), true), 3);
+});
+
+test('streak multiplier climbs to x5; near-miss gap is measured from the frame', () => {
+  assert.deepEqual([0, 1, 2, 4, 9].map(Sim.multiplier), [1, 2, 3, 5, 5]);
+  const gap = (x, y) => Sim.missBy({ ev: { out: { x, y } } });
+  assert.ok(Math.abs(gap(Sim.HW + 0.3, 1) - (0.3 - Sim.R - Sim.PR)) < 1e-9);
+  assert.ok(Math.abs(gap(0, Sim.GH + 0.5) - (0.5 - Sim.R - Sim.PR)) < 1e-9);
+  assert.equal(Sim.missBy({ ev: {} }), null);
+});
