@@ -74,3 +74,15 @@ test('a chosen spot moves the ball', () => {
   const w = Sim.newWorld(0, 1, { dist: 35, ang: 30 });
   assert.ok(Math.abs(Math.hypot(w.ball.x, w.ball.z) - 35) < 1e-9 && w.ball.x > 0);
 });
+
+test('a power shot can clear the wall and dip under the bar from 26 m central', () => {
+  let over = 0;
+  for (let v = -1; v <= -0.4; v += 0.1) for (const power of [0.6, 0.8, 1]) for (const aim of [-0.25, 0.25]) {
+    const w = Sim.newWorld(6, 1); w.keeper.z = 50; // keeper out of the way: testing the flight only
+    Sim.kick(w, { style: 0, aim, power, u: 0, v });
+    let atWall = 0;
+    for (let i = 0; i < 240 * 6 && !w.result; i++) { Sim.step(w, 1 / 240); if (!atWall && w.ball.z > w.wall[0].z) atWall = w.ball.y; }
+    if (w.result === 'goal' && atWall > 2) over++;
+  }
+  assert.ok(over >= 3, 'only ' + over + ' power shots went over the wall and in');
+});

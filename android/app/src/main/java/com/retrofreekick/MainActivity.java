@@ -35,8 +35,8 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    protected void onPause() { super.onPause(); web.onPause(); }
+    protected void onPause() { super.onPause(); web.onPause(); web.pauseTimers(); } // no JS ticking in the background
 
     @Override
-    protected void onResume() { super.onResume(); web.onResume(); }
+    protected void onResume() { super.onResume(); web.onResume(); web.resumeTimers(); }
 }

@@ -19,11 +19,13 @@
   }
 
   // spin > 0: striking right of centre bends the ball left (inside of the boot). Trivela flips it and swerves late.
+  // elev/loft: launch angle = elev - v * loft (deg). top0/top: topspin = top0 + v * top, so every struck shot dips
+  // (curlers and drives carry topspin) and striking low only lofts it instead of ballooning it with backspin
   const STYLES = [
-    { name: 'POWER', desc: 'DRIVEN, FAST, LITTLE SPIN', vMin: 20, vMax: 34, elev: 6, spin: 0.25, top: 0.3, u: 0, v: 0.25 },
-    { name: 'CURVE', desc: 'WHIP IT AROUND THE WALL', vMin: 15, vMax: 28, elev: 14, spin: 1.0, top: 0.5, u: 0.65, v: -0.2 },
-    { name: 'TRIVELA', desc: 'OUTSIDE BOOT, LATE SWERVE', vMin: 17, vMax: 30, elev: 12, spin: -1.15, top: 0.4, u: 0.55, v: -0.1, late: true },
-    { name: 'KNUCKLE', desc: 'NO SPIN, WILD WOBBLE', vMin: 22, vMax: 33, elev: 12, spin: 0, top: 0, u: 0, v: 0, knuckle: true },
+    { name: 'POWER', desc: 'DRIVEN, FAST, DIPS LATE', vMin: 20, vMax: 34, elev: 9, loft: 11, spin: 0.25, top0: 0.75, top: 0.3, u: 0, v: -0.3 },
+    { name: 'CURVE', desc: 'WHIP IT AROUND THE WALL', vMin: 15, vMax: 28, elev: 14, loft: 11, spin: 1.0, top0: 0.6, top: 0.3, u: 0.65, v: -0.2 },
+    { name: 'TRIVELA', desc: 'OUTSIDE BOOT, LATE SWERVE', vMin: 17, vMax: 30, elev: 12, loft: 11, spin: -1.15, top0: 0.5, top: 0.3, u: 0.55, v: -0.1, late: true },
+    { name: 'KNUCKLE', desc: 'NO SPIN, WILD WOBBLE', vMin: 22, vMax: 33, elev: 12, loft: 11, spin: 0, top0: 0, top: 0, u: 0, v: 0, knuckle: true },
   ];
 
   // [distance m, angle deg (+ = ball right of goal), wall men, wind m/s, top-corner targets]
@@ -74,7 +76,7 @@
     const st = STYLES[shot.style], speed = speedOf(shot), cm = shot.insane ? 4 : 1;
     const yaw = w.yaw0 + shot.aim * (shot.insane ? 0.8 : 0.35) + st.spin * shot.u * 0.05 * cm; // off-centre contact starts it on the outside of the bend
     // harder strikes launch flatter: no change up to 34 m/s, keeps 1000 km/h shots inside the stadium
-    const el = (st.elev - shot.v * 9) * DEG * Math.min(1, 34 / speed), side = -shot.u * st.spin * cm, top = shot.v * st.top;
+    const el = clamp(st.elev - shot.v * st.loft, 1, 30) * DEG * Math.min(1, 34 / speed), side = -shot.u * st.spin * cm, top = st.top0 + shot.v * st.top;
     b.vx = Math.sin(yaw) * Math.cos(el) * speed; b.vy = Math.sin(el) * speed; b.vz = Math.cos(yaw) * Math.cos(el) * speed;
     b.sx = top * Math.cos(yaw); b.sy = side; b.sz = -top * Math.sin(yaw);
     return st;
@@ -309,7 +311,8 @@
   const CAM_BACK = 4.6, CAM_H = 3.8, BALL_SY = 362, BAR_SY = 104, STAND_Z = 8, STAND_TOP = 15;
   const BAR_X = 28, BAR_W = 152, WX = 226, WY = 449, WR = 27;
 
-  const cv = document.getElementById('c'), ctx = cv.getContext('2d', { alpha: false });
+  const cv = document.getElementById('c');
+  let ctx = cv.getContext('2d', { alpha: false }); // swapped to an overlay layer while that layer redraws
   ctx.imageSmoothingEnabled = false;
   const img = ctx.createImageData(W, H), buf = new Uint32Array(img.data.buffer);
   const RGB = (r, g, b) => ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0;
@@ -388,16 +391,33 @@
   // ------------------------------------------------------------------ background: per-pixel ray cast of pitch + stand
   // grass noise, stand and sky are baked once; the per-pixel loop is just ray maths + lookups
   const GTEX = [0, 1].map((k) => { const t = new Uint32Array(4096); for (let i = 0; i < 4096; i++) t[i] = GRASS[k][hash(i & 63, i >> 6) & 3]; return t; });
-  function groundPx(gx, gz, lw, lwz) {
-    if (gz < 0.5 && gz > -20.3) {
-      const ax = gx < 0 ? -gx : gx, d = gz + 11;
-      if ((Math.abs(gz) < lwz && ax < 40) ||
-        (Math.abs(gz + 5.5) < lwz && ax < 9.16) || (gz > -5.5 && gz < 0 && Math.abs(ax - 9.16) < lw) ||
-        (Math.abs(gz + 16.5) < lwz && ax < 20.16) || (gz > -16.5 && gz < 0 && Math.abs(ax - 20.16) < lw) ||
-        (ax < lw + 0.1 && Math.abs(d) < lwz + 0.1) ||
-        (gz < -16.5 && Math.abs(Math.sqrt(gx * gx + d * d) - 9.15) < lwz)) return LINE;
+  // pitch markings: on each screen row the ground point moves linearly with px, so every line's pixel span
+  // is solved directly instead of testing each pixel against each line
+  function span(o, A1, B1, lo1, hi1, A2, B2, lo2, hi2) { // fill px where lo1 < A1 + px*B1 < hi1 and lo2 < A2 + px*B2 < hi2
+    let a = 0, b = W - 1;
+    if (Math.abs(B1) < 1e-9) { if (!(lo1 < A1 && A1 < hi1)) return; }
+    else { let p = (lo1 - A1) / B1, q = (hi1 - A1) / B1; if (p > q) { const t = p; p = q; q = t; } if (p > a) a = p; if (q < b) b = q; }
+    if (Math.abs(B2) < 1e-9) { if (!(lo2 < A2 && A2 < hi2)) return; }
+    else { let p = (lo2 - A2) / B2, q = (hi2 - A2) / B2; if (p > q) { const t = p; p = q; q = t; } if (p > a) a = p; if (q < b) b = q; }
+    for (let px = Math.ceil(a); px <= b; px++) buf[o + px] = LINE;
+  }
+  function pitchLines(o, xA, xB, zA, zB, lw, lwz) {
+    span(o, zA, zB, -lwz, lwz, xA, xB, -40, 40); // goal line
+    span(o, zA, zB, -5.5 - lwz, -5.5 + lwz, xA, xB, -9.16, 9.16); // six-yard box
+    span(o, zA, zB, -16.5 - lwz, -16.5 + lwz, xA, xB, -20.16, 20.16); // penalty box
+    for (let s = -1; s <= 1; s += 2) {
+      span(o, xA, xB, s * 9.16 - lw, s * 9.16 + lw, zA, zB, -5.5, 0);
+      span(o, xA, xB, s * 20.16 - lw, s * 20.16 + lw, zA, zB, -16.5, 0);
     }
-    return GTEX[Math.floor(gz * 0.25) & 1][(((gz * 3) & 63) << 6) | ((gx * 3) & 63)];
+    span(o, xA, xB, -lw - 0.1, lw + 0.1, zA, zB, -11.1 - lwz, -10.9 + lwz); // penalty spot
+    // the D is curved: test per pixel, but only inside its depth band
+    let a = 0, b = W - 1;
+    if (Math.abs(zB) > 1e-9) { let p = (-20.2 - zA) / zB, q = (-16.5 - zA) / zB; if (p > q) { const t = p; p = q; q = t; } a = Math.max(a, p); b = Math.min(b, q); }
+    else if (!(zA > -20.2 && zA < -16.5)) return;
+    for (let px = Math.ceil(a); px <= b; px++) {
+      const gx = xA + px * xB, d = zA + px * zB + 11;
+      if (Math.abs(Math.sqrt(gx * gx + d * d) - 9.15) < lwz) buf[o + px] = LINE;
+    }
   }
   // stand texture: 160 m wide x 15 m tall at 12 texels/m; frame 0 = seated crowd, 1-3 = cheering (bobbing + camera flashes)
   const TPM = 12, TEX_W = 160 * TPM, TEX_H = STAND_TOP * TPM;
@@ -422,31 +442,37 @@
     if (fy >= 0.6 && fy < 0.85 && fx > 0.3 && fx < 0.7) return SKINC[(h >>> 8) & 3];
     return SEAT[row & 1];
   }
-  const STAND = [0, 1, 2, 3].map((f) => {
+  function bakeStand(f) {
     const t = new Uint32Array(TEX_W * TEX_H);
     for (let y = 0; y < TEX_H; y++) for (let x = 0; x < TEX_W; x++) t[y * TEX_W + x] = standPx((x + 0.5) / TPM - 80, (y + 0.5) / TPM, f);
     return t;
-  });
+  }
+  const STAND = [bakeStand(0)]; // cheering frames are baked one at a time after launch so start-up stays quick
+  setTimeout(function more() { if (STAND.length < 4) { STAND.push(bakeStand(STAND.length)); setTimeout(more, 200); } }, 1500);
   const SKYBUF = new Uint32Array(W * H);
   for (let i = 0; i < W * H; i++) SKYBUF[i] = hash(i % W, (i / W) | 0) % 397 === 0 && i < W * 150 ? STAR : SKY[(i / W) | 0];
   function renderBG() {
     const f = cam.f, r = cam.r, u = cam.u, iF = 1 / cam.F, cx = cam.cx, cy = cam.cy, X = cam.x, Y = cam.y, Z = cam.z;
-    const tex = STAND[excite > 0.05 ? 1 + (Math.floor(tnow * 8) % 3) : 0];
-    let o = 0;
-    for (let py = 0; py < H; py++) {
+    const tex = STAND[excite > 0.05 ? Math.min(STAND.length - 1, 1 + (Math.floor(tnow * 8) % 3)) : 0];
+    for (let py = 0, row = 0; py < H; py++, row += W) {
       const b = (py - cy) * iF, ry = f[1] - b * u[1];
       const rx0 = f[0] - b * u[0] - cx * iF * r[0], rz0 = f[2] - b * u[2] - cx * iF * r[2], drx = r[0] * iF, drz = r[2] * iF;
       const ground = ry < -1e-5, tg = ground ? -Y / ry : 0;
-      const lw = Math.max(0.06, tg * iF * 0.6), lwz = Math.max(0.06, (tg * tg * iF * 0.55) / Y); // keep lines >= 1px at grazing angles
-      for (let px = 0; px < W; px++, o++) {
-        const rx = rx0 + px * drx, rz = rz0 + px * drz;
-        if (ground) { const gz = Z + tg * rz; if (gz < STAND_Z) { buf[o] = groundPx(X + tg * rx, gz, lw, lwz); continue; } }
+      const xA = X + tg * rx0, xB = tg * drx, zA = Z + tg * rz0, zB = tg * drz; // ground point = (xA + px*xB, zA + px*zB)
+      for (let px = 0, o = row; px < W; px++, o++) {
+        if (ground) {
+          const gz = zA + px * zB;
+          if (gz < STAND_Z) { const gx = xA + px * xB; buf[o] = GTEX[Math.floor(gz * 0.25) & 1][(((gz * 3) & 63) << 6) | ((gx * 3) & 63)]; continue; }
+        }
+        const rz = rz0 + px * drz;
         if (rz > 1e-5) {
-          const ts = (STAND_Z - Z) / rz, sy = Y + ts * ry, sx = X + ts * rx;
+          const ts = (STAND_Z - Z) / rz, sy = Y + ts * ry, sx = X + ts * (rx0 + px * drx);
           if (sy < STAND_TOP && sx > -80 && sx < 80) { buf[o] = tex[(sy > 0 ? (sy * TPM) | 0 : 0) * TEX_W + (((sx + 80) * TPM) | 0)]; continue; }
         }
         buf[o] = SKYBUF[o];
       }
+      // keep lines >= 1px at grazing angles
+      if (ground) pitchLines(row, xA, xB, zA, zB, Math.max(0.06, tg * iF * 0.6), Math.max(0.06, (tg * tg * iF * 0.55) / Y));
     }
   }
   function blendLine(x0, y0, x1, y1, c, a) { // Bresenham straight into the pixel buffer
@@ -477,7 +503,7 @@
   }
   function netHit(x, y, s) {
     for (let j = 1; j < NY - 1; j++) for (let i = 1; i < NX - 1; i++) {
-      const d2 = (nodeX(i) - x) ** 2 + (nodeY(j) - y) ** 2;
+      const ex = nodeX(i) - x, ey = nodeY(j) - y, d2 = ex * ex + ey * ey;
       nv[j * NX + i] += s * Math.exp(-d2 / 0.5);
     }
   }
@@ -546,6 +572,32 @@
       p(3, 30, 2, 2, '#151515'); p(7, 30, 2, 2, '#151515');
     }),
   };
+  const KB = '#2456d8', KBd = '#163a98', KHR = '#3a2412', WH = '#ffffff', BT = '#151515';
+  function kicker(pose) {
+    return mk(16, 33, (p) => {
+      p(6, 0, 4, 1, KHR); p(5, 1, 6, 5, KHR); p(4, 3, 1, 2, KS); p(11, 3, 1, 2, KS); p(7, 6, 2, 1, KS);
+      p(4, 7, 8, 11, KB); p(11, 7, 1, 11, KBd); p(6, 7, 4, 1, WH);
+      p(6, 9, 1, 5, WH); p(5, 10, 1, 1, WH); p(5, 13, 3, 1, WH); // 1
+      p(8, 9, 3, 1, WH); p(8, 13, 3, 1, WH); p(8, 10, 1, 3, WH); p(10, 10, 1, 3, WH); // 0
+      p(4, 18, 8, 4, '#f2f2f2'); p(11, 18, 1, 4, '#c4c4cc');
+      const leg = (x) => { p(x, 22, 2, 5, KS); p(x, 27, 2, 4, KB); p(x, 27, 2, 1, WH); p(x - 1, 31, 3, 2, BT); };
+      if (pose !== 'run2') leg(5); // standing / planted left leg
+      if (pose === 'stand') { p(3, 7, 1, 4, KB); p(12, 7, 1, 4, KBd); p(3, 11, 1, 4, KS); p(12, 11, 1, 4, KS); leg(9); }
+      else if (pose === 'run') { // left arm forward, right arm back, right foot kicked up behind
+        p(3, 7, 1, 3, KB); p(3, 10, 1, 2, KS); p(12, 7, 1, 4, KBd); p(13, 11, 1, 4, KS);
+        p(9, 22, 2, 3, KS); p(10, 25, 2, 2, KS); p(10, 27, 2, 2, KB); p(10, 29, 3, 2, BT);
+      } else if (pose === 'run2') { // other stride: right leg planted, left foot up behind, arms swapped
+        p(12, 7, 1, 3, KBd); p(12, 10, 1, 2, KS); p(3, 7, 1, 4, KB); p(2, 11, 1, 4, KS); leg(9);
+        p(5, 22, 2, 3, KS); p(4, 25, 2, 2, KS); p(4, 27, 2, 2, KB); p(3, 29, 3, 2, BT);
+      } else { // strike: arms out for balance, right leg swinging through
+        p(1, 8, 3, 2, KB); p(0, 8, 1, 2, KS); p(12, 8, 3, 2, KBd); p(15, 8, 1, 2, KS);
+        p(9, 22, 2, 2, KS); p(10, 23, 3, 2, KS); p(12, 24, 2, 2, KB); p(13, 25, 3, 2, BT);
+      }
+    });
+  }
+  const KICKER = { stand: kicker('stand'), run: kicker('run'), run2: kicker('run2'), kick: kicker('kick') };
+  const RUN_T = 0.45; // run-up time; the ball leaves at foot contact
+
   let DEF = [];
   function makeDefenders() {
     DEF = world.wall.map((_, i) => { const s = SKINS[(i * 3 + world.L.n) & 3], h = HAIRS[(i + world.L.n * 2) & 3]; return [defender(s, h, false), defender(s, h, true)]; });
@@ -565,7 +617,7 @@
     const c = document.createElement('canvas');
     c.width = c.height = S;
     const g = c.getContext('2d'), d = g.createImageData(S, S), px = new Uint32Array(d.data.buffer);
-    const r = S / 2, ca = Math.cos(ang), sa = Math.sin(ang), edge = (1 - 1.5 / r) ** 2;
+    const r = S / 2, ca = Math.cos(ang), sa = Math.sin(ang), edge = (1 - 1.5 / r) * (1 - 1.5 / r);
     for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
       const nx = (x + 0.5 - r) / r, ny = (r - y - 0.5) / r, d2 = nx * nx + ny * ny;
       if (d2 > 1) continue;
@@ -702,9 +754,7 @@
   function pickStyle(i) { shot.style = i; shot.u = STYLES[i].u; shot.v = STYLES[i].v; hint = { t: 0, s: STYLES[i].name + ': ' + STYLES[i].desc }; }
   function doKick() {
     if (state !== 'aim') return;
-    Sim.kick(world, shot);
-    state = 'flight'; stateT = 0; acc = 0; ptr = null; msg = null; moving = false;
-    sfx('kick');
+    state = 'runup'; stateT = 0; ptr = null; msg = null; moving = false;
   }
   function onResult() {
     state = 'result'; stateT = 0;
@@ -740,8 +790,9 @@
 
   // ------------------------------------------------------------------ input
   const loc = (e) => { const r = cv.getBoundingClientRect(); return [((e.clientX - r.left) * W) / r.width, ((e.clientY - r.top) * H) / r.height]; };
-  cv.addEventListener('pointerdown', (e) => {
-    e.preventDefault(); initAudio();
+  let lastTouch = 0;
+  function onDown(id, e) {
+    initAudio(); lastTouch = tnow;
     if (ptr) return;
     const [x, y] = loc(e);
     if (state === 'title') return startGame();
@@ -762,20 +813,32 @@
     else if (y < UI_Y) mode = moving ? 'move' : 'swipe';
     if (!mode) return;
     const fl = Math.hypot(cam.f[0], cam.f[2]); // screen axes on the ground at drag start, for MOVE
-    ptr = { id: e.pointerId, mode, sx: x, sy: y, u0: shot.u, pts: [[x, y]], live: false,
+    ptr = { id, mode, sx: x, sy: y, u0: shot.u, pts: [[x, y]], live: false,
       bx: world.ball.x, bz: world.ball.z, rx: cam.r[0], rz: cam.r[2], fx: cam.f[0] / fl, fz: cam.f[2] / fl };
-    try { cv.setPointerCapture(e.pointerId); } catch (_) {}
     drag(x, y);
-  });
-  cv.addEventListener('pointermove', (e) => { if (ptr && e.pointerId === ptr.id) { const [x, y] = loc(e); drag(x, y); } });
-  const release = (e) => {
-    if (!ptr || e.pointerId !== ptr.id) return;
+  }
+  function onMove(id, e) { if (ptr && id === ptr.id) { const [x, y] = loc(e); drag(x, y); } }
+  function onUp(id, ok) {
+    if (!ptr || id !== ptr.id) return;
     const p = ptr;
     ptr = null;
-    if (p.mode === 'swipe' && p.live && e.type === 'pointerup' && shot.power > 0.12) doKick();
-  };
-  cv.addEventListener('pointerup', release);
-  cv.addEventListener('pointercancel', release);
+    if (p.mode === 'swipe' && p.live && ok && shot.power > 0.12) doKick();
+  }
+  if (window.PointerEvent) {
+    cv.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); onDown(e.pointerId, e);
+      if (ptr && ptr.id === e.pointerId) try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    cv.addEventListener('pointermove', (e) => onMove(e.pointerId, e));
+    cv.addEventListener('pointerup', (e) => onUp(e.pointerId, true));
+    cv.addEventListener('pointercancel', (e) => onUp(e.pointerId, false));
+  } else { // WebViews older than Chrome 55 (never-updated Android 7) only have touch events
+    const each = (fn) => (e) => { e.preventDefault(); for (let i = 0; i < e.changedTouches.length; i++) fn(e.changedTouches[i]); };
+    cv.addEventListener('touchstart', each((t) => onDown(t.identifier, t)));
+    cv.addEventListener('touchmove', each((t) => onMove(t.identifier, t)));
+    cv.addEventListener('touchend', each((t) => onUp(t.identifier, true)));
+    cv.addEventListener('touchcancel', each((t) => onUp(t.identifier, false)));
+  }
   function drag(x, y) {
     const p = ptr;
     if (p.mode === 'whip') {
@@ -815,7 +878,7 @@
     const w = rw * p[2], h = Math.max(1, Math.round(w * 0.3));
     ctx.fillStyle = 'rgba(0,24,0,' + a + ')';
     for (let dy = -h; dy <= h; dy++) {
-      const hw = Math.round(w * Math.sqrt(Math.max(0, 1 - (dy / (h + 0.5)) ** 2)));
+      const q = dy / (h + 0.5), hw = Math.round(w * Math.sqrt(Math.max(0, 1 - q * q)));
       ctx.fillRect(Math.round(p[0]) - hw, Math.round(p[1]) + dy, hw * 2, 1);
     }
   }
@@ -862,7 +925,7 @@
   function drawKeeper() {
     const k = world.keeper;
     if (state === 'aim' || state === 'title' || k.state === 'idle' || k.state === 'ready' || k.state === 'watch') {
-      const sway = state === 'aim' || state === 'title' ? Math.sin(tnow * 1.3) * 0.15 : 0;
+      const sway = state === 'aim' || state === 'title' || state === 'runup' ? Math.sin(tnow * 1.3) * 0.15 : 0;
       const bob = (Math.floor(tnow * 2.5) & 1) * 0.05;
       upright(KEEP.idle, k.x + sway, 0, k.z, k.state === 'ready' ? 1.92 : 2.12 - bob);
     } else if (k.state === 'block') upright(KEEP.block, k.ax, 0, k.z, 2.1);
@@ -884,6 +947,20 @@
     if (s < 5) { ctx.fillStyle = '#ffffff'; ctx.fillRect(x, y, s, s); if (s > 2) { ctx.fillStyle = '#8e96a8'; ctx.fillRect(x + s - 1, y + s - 1, 1, 1); } return; }
     const set = Math.abs(b.sy) > Math.hypot(b.sx, b.sz) ? BALL.y : BALL.x;
     ctx.drawImage(set[((Math.floor((b.rot / (Math.PI * 2)) * 16) % 16) + 16) % 16], x, y, s, s);
+  }
+  function kickerPos() { // waits behind-left of the ball (right-footed), runs to plant beside it
+    const s = world.start, fx = Math.sin(world.yaw0), fz = Math.cos(world.yaw0);
+    let back = 1.5, side = 0.9;
+    if (state === 'runup') { const e = Math.min(1, stateT / RUN_T); back -= 1.2 * e; side -= 0.58 * e; }
+    else if (state === 'flight' || state === 'result') { back = 0.3; side = 0.32; }
+    return [s.x - fx * back - fz * side, s.z - fz * back + fx * side];
+  }
+  function drawKicker(x, z) {
+    const p = proj(x, 0, z);
+    if (!p || p[3] < 2.2) return; // the dollying camera passes him: don't blow him up across the screen
+    const spr = state === 'runup' ? (Math.floor(stateT / 0.09) & 1 ? KICKER.run2 : KICKER.run) : state === 'flight' && stateT < 0.35 ? KICKER.kick : KICKER.stand;
+    shadow(x, z, 0.35, 0.3);
+    upright(spr, x, state === 'runup' ? Math.abs(Math.sin(stateT * 35)) * 0.06 : 0, z, 2.05);
   }
   function wallPos(d, i) { // during the first second the wall shuffles across into its line
     if (state !== 'aim' && state !== 'title') return [d.x, d.y, d.z];
@@ -912,9 +989,11 @@
     add((k.ax + k.bx) / 2, 1, k.z, drawKeeper);
     wp.forEach((p, i) => add(p[0], 1, p[2], () => upright(DEF[i][world.wall[i].y > 0.02 ? 1 : 0], p[0], p[1], p[2], 2.0)));
     add(b.x, b.y, b.z, drawBall);
+    const kp = kickerPos();
+    add(kp[0], 1, kp[1], () => drawKicker(kp[0], kp[1]));
     items.sort((p, q) => q[0] - p[0]).forEach((it) => it[1]());
 
-    if (state === 'aim') { // dotted launch arc for the first few metres
+    if (state === 'aim' || state === 'runup') { // dotted launch arc for the first few metres
       const pts = Sim.preview(world, shot, 7);
       pts.forEach((q, i) => {
         const p = proj(q[0], q[1], q[2]);
@@ -931,7 +1010,19 @@
     overlays();
   }
 
+  // HUD and control panel change rarely: draw them into their own layer only when what they show changes
+  const layer = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; c.g = c.getContext('2d'); c.g.imageSmoothingEnabled = false; return c; };
+  const HUD_L = layer(), UI_L = layer();
+  function cached(c, key, y0, h, draw) {
+    if (c.key !== key) { c.key = key; const main = ctx; ctx = c.g; ctx.clearRect(0, 0, W, H); draw(); ctx = main; }
+    ctx.drawImage(c, 0, y0, W, h, 0, y0, W, h);
+  }
   function hud() {
+    const L = world.L, wx = L.wind.x, wz = L.wind.z;
+    const X = wx * cam.r[0] + wz * cam.r[2], Zc = wx * cam.f[0] + wz * cam.f[2], l = Math.hypot(X, Zc) || 1, dx = Math.round((X / l) * 20) / 20, dy = Math.round((-Zc / l) * 20) / 20;
+    cached(HUD_L, [L.n, L.dist, L.ang, score, best, lives, dx, dy, moving, shot.mega, shot.insane, shot.assist].join(), 0, 48, () => drawHud(dx, dy));
+  }
+  function drawHud(dx, dy) {
     CHIPS.forEach(([label, key], i) => {
       const on = key === 'move' ? moving : shot[key], x = 3 + i * 67;
       bevel(x, CHIP_Y, 64, 12, on ? '#30d070' : 'rgba(20,24,56,0.85)', on ? '#a0ffc0' : '#4a56a0', on ? '#108040' : '#141834');
@@ -944,8 +1035,7 @@
     text('BEST ' + best, W - 4, 12, 1, '#a0a8c0', 1);
     for (let i = 0; i < lives; i++) ctx.drawImage(BALL.x[0], W - 11 - i * 9, 20, 7, 7);
     if (L.windSpeed > 0) { // arrow in screen space: up = toward the goal
-      const wx = L.wind.x, wz = L.wind.z, X = wx * cam.r[0] + wz * cam.r[2], Zc = wx * cam.f[0] + wz * cam.f[2], l = Math.hypot(X, Zc) || 1;
-      const dx = X / l, dy = -Zc / l, cx = 135, cy = 22;
+      const cx = 135, cy = 22;
       text('WIND ' + L.windSpeed.toFixed(1) + 'M/S', cx, 4, 1, '#9ff0ff', 0.5);
       line(cx - dx * 7, cy - dy * 7, cx + dx * 7, cy + dy * 7, 1, '#9ff0ff');
       const hx = cx + dx * 7, hy = cy + dy * 7;
@@ -955,6 +1045,11 @@
   }
 
   function ui() {
+    const live = state === 'aim', hintOn = live && hint && hint.t < 2.2;
+    cached(UI_L, [live, live && Math.floor(tnow * 3) & 1, shot.style, shot.aim, shot.power, shot.u, shot.v, shot.mega, shot.insane, shot.assist,
+      hintOn && hint.s, moving, level < 2 && Math.floor(tnow * 1.5) & 1].join(), UI_Y - 10, H - UI_Y + 10, drawUi);
+  }
+  function drawUi() {
     const live = state === 'aim', st = STYLES[shot.style];
     ctx.fillStyle = 'rgba(10,12,32,0.86)'; ctx.fillRect(0, UI_Y, W, H - UI_Y);
     ctx.fillStyle = '#5a6ab0'; ctx.fillRect(0, UI_Y, W, 1);
@@ -1029,12 +1124,14 @@
     if (msg) msg.t += dt;
     if (hint) hint.t += dt;
     if (state === 'aim' && levelT > 0.4 && !whistled) { whistled = true; sfx('whistle'); }
+    if (state === 'runup' && stateT >= RUN_T) { Sim.kick(world, shot); state = 'flight'; stateT = 0; acc = 0; sfx('kick'); }
     if (state === 'flight' || state === 'result') {
       acc += dt;
       while (acc >= STEP) { acc -= STEP; handle(Sim.step(world, STEP)); netStep(STEP); }
       if (state === 'result' && stateT > 2.8) advance();
     }
     updateCam(dt);
+    if (AC && AC.state === 'running' && idle() && tnow - lastTouch > 6) AC.suspend(); // woken by the next tap
     if (AC) {
       const b = world.ball, fl = state === 'flight' && !b.held, t = AC.currentTime;
       const sp = fl ? Math.hypot(b.vx, b.vy, b.vz) : 0, spin = fl ? Math.min(1, Math.hypot(b.sx, b.sy, b.sz)) : 0;
@@ -1047,10 +1144,13 @@
   world = Sim.newWorld(0, 1);
   makeDefenders();
   frameCam();
+  // nothing moving but idle animations: ~15 fps instead of 60 to save battery
+  const idle = () => (state === 'title' || state === 'over' || state === 'aim') && !ptr && levelT > 1.3 && excite < 0.05 && !(msg && msg.t < 0.4);
   let last = performance.now();
   function frame(now) {
-    requestAnimationFrame(frame); // first, so one bad frame can't freeze the game
-    const dt = Math.min(0.05, (now - last) / 1000);
+    if (idle()) setTimeout(() => requestAnimationFrame(frame), 50); // scheduled first, so one bad frame can't freeze the game
+    else requestAnimationFrame(frame);
+    const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     try { update(dt); render(); }
     catch (err) { text('ERROR ' + String(err.message).slice(0, 60), 2, H - 8, 1, '#ff4040'); } // visible on-device for bug reports
