@@ -595,6 +595,9 @@
     if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
     const Ctor = window.AudioContext || window.webkitAudioContext;
     if (!Ctor) return;
+    try { setupAudio(Ctor); } catch (err) { AC = null; console.warn('audio off:', err); } // no sound beats a frozen game
+  }
+  function setupAudio(Ctor) {
     AC = new Ctor();
     master = AC.createGain(); master.gain.value = 0.6; master.connect(AC.destination);
     noiseBuf = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate);
@@ -993,10 +996,11 @@
   frameCam();
   let last = performance.now();
   function frame(now) {
-    update(Math.min(0.05, (now - last) / 1000));
+    requestAnimationFrame(frame); // first, so one bad frame can't freeze the game
+    const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
-    render();
-    requestAnimationFrame(frame);
+    try { update(dt); render(); }
+    catch (err) { text('ERROR ' + String(err.message).slice(0, 60), 2, H - 8, 1, '#ff4040'); } // visible on-device for bug reports
   }
   requestAnimationFrame(frame);
   window.__rfk = { Sim, get world() { return world; }, get state() { return state; }, shot }; // handle for automated checks
