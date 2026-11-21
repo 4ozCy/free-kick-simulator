@@ -630,6 +630,24 @@
       perk: 'MALEDETTA: EXTRA DIP', skin: '#e8b890', hair: '#2a1a10', cut: 'long', shirt: '#1c50c0', num: 21, numCol: '#ffffff', shorts: '#f2f2f2', socks: '#1c50c0' },
     { name: 'DAVID LUIZ', foot: 'R', back: 1.6, side: 0.8, runT: 0.6, stepT: 0.08, stance: 'wide', style: 3, pw: 0.1, kn: 0.15, run: 'LONG, ON HIS TOES',
       perk: 'ROCKET: +10% POWER, KNUCKLE', skin: '#d8a070', hair: '#3a2412', cut: 'afro', shirt: '#f8d820', num: 4, numCol: '#108040', shorts: '#2050c0', socks: '#f2f2f2' },
+    { name: 'NEYMAR', foot: 'R', back: 1.0, side: 0.8, runT: 0.42, stepT: 0.07, stance: 'stand', style: 1, cv: 0.1, react: 0.04, run: 'SHORT STUTTER STEPS',
+      perk: 'SAMBA: +10% CURVE, KEEPER REACTS LATE', skin: '#c88a5a', hair: '#e8c860', hair2: '#2a1a10', cut: 'mohawk', shirt: '#1a2a5a', centre: '#c81830', num: 10, numCol: '#ffffff', shorts: '#1a2a5a', socks: '#1a2a5a' },
+    { name: 'ZIDANE', foot: 'R', back: 1.2, side: 0.9, runT: 0.48, stepT: 0.1, stance: 'stand', style: 1, cv: 0.08, guide: 4, run: 'UNHURRIED, ELEGANT',
+      perk: 'MAESTRO: +8% CURVE, LONGER GUIDE', skin: '#d8a878', hair: '#3a2a1a', cut: 'bald', shirt: '#20307a', num: 10, numCol: '#ffffff', shorts: '#f2f2f2', socks: '#c81830' },
+    { name: 'BALE', foot: 'L', back: 1.6, side: 0.8, runT: 0.55, stepT: 0.1, stance: 'wide', style: 3, pw: 0.1, kn: 0.25, run: 'WIDE STANCE, LONG STRIDES',
+      perk: 'DRAGON: +10% POWER, WILD KNUCKLE', skin: '#f0c8a0', hair: '#4a2a14', cut: 'bun', shirt: '#c81830', num: 11, numCol: '#ffffff', shorts: '#c81830', socks: '#c81830' },
+    { name: 'DEL PIERO', foot: 'R', back: 1.2, side: 0.9, runT: 0.45, stepT: 0.09, stance: 'hips', style: 1, cv: 0.2, run: 'SHORT, PRECISE',
+      perk: 'PINTURICCHIO: +20% CURVE', skin: '#e8b890', hair: '#2a1a10', cut: 'short', shirt: '#f2f2f2', stripe: '#151515', num: 10, numCol: '#f0c020', shorts: '#f2f2f2', socks: '#f2f2f2' },
+    { name: 'ZICO', foot: 'R', back: 1.0, side: 0.8, runT: 0.4, stepT: 0.08, stance: 'stand', style: 1, cv: 0.15, tp: 0.2, run: 'SHORT AND SHARP',
+      perk: 'GALINHO: +15% CURVE, EXTRA DIP', skin: '#e0b088', hair: '#1a1210', cut: 'curly', shirt: '#c81830', hoops: '#151515', num: 10, numCol: '#ffffff', shorts: '#f2f2f2', socks: '#151515' },
+    { name: 'BAGGIO', foot: 'R', back: 1.1, side: 0.9, runT: 0.45, stepT: 0.09, stance: 'stand', style: 1, cv: 0.12, guide: 3, run: 'LIGHT, BALANCED',
+      perk: 'DIVINE PONYTAIL: +12% CURVE, LONGER GUIDE', skin: '#e8b890', hair: '#1a1210', cut: 'ponytail', shirt: '#2a5ad0', num: 10, numCol: '#ffffff', shorts: '#f2f2f2', socks: '#2a5ad0' },
+    { name: 'KOEMAN', foot: 'R', back: 1.6, side: 0.7, runT: 0.55, stepT: 0.1, stance: 'wide', style: 0, pw: 0.14, run: 'LONG, STRAIGHT, HEAVY',
+      perk: 'THUNDERBOLT: +14% POWER', skin: '#f0c8a0', hair: '#e8d080', cut: 'short', shirt: '#f07818', num: 4, numCol: '#151515', shorts: '#f2f2f2', socks: '#f07818' },
+    { name: 'TRENT', foot: 'R', back: 1.2, side: 1.0, runT: 0.45, stepT: 0.09, stance: 'stand', style: 1, cv: 0.18, guide: 2, run: 'ANGLED, QUICK',
+      perk: 'QUARTERBACK: +18% CURVE', skin: '#a86838', hair: '#151515', cut: 'short', shirt: '#c8102e', num: 66, numCol: '#ffffff', shorts: '#c8102e', socks: '#c8102e' },
+    { name: 'MIHAJLOVIC', foot: 'L', back: 1.5, side: 0.8, runT: 0.5, stepT: 0.08, stance: 'stand', style: 0, pw: 0.14, cv: 0.05, run: 'BRISK, STRAIGHT',
+      perk: 'LEFT HAMMER: +14% POWER', skin: '#f0c8a0', hair: '#c8a860', cut: 'short', shirt: '#8ac8f0', num: 11, numCol: '#1a2a5a', shorts: '#f2f2f2', socks: '#1a2a5a' },
   ];
   function heroSprite(h, pose) { // seen from behind; left-footers are drawn mirrored, except the shirt number
     return mk(16, 33, (raw) => {
@@ -637,6 +655,8 @@
       const SK = h.skin, S = h.shirt, H = h.hair, SH = 'rgba(0,0,0,0.22)', BT = '#151515';
       p(4, 7, 8, 11, S);
       if (h.stripe) for (let x = 5; x < 12; x += 2) p(x, 7, 1, 11, h.stripe);
+      if (h.hoops) for (let y = 8; y < 18; y += 3) p(4, y, 8, 1, h.hoops);
+      if (h.centre) p(6, 7, 4, 11, h.centre);
       p(11, 7, 1, 11, SH);
       const ds = String(h.num), x0 = ds.length > 1 ? 4 : 6;
       for (let d = 0; d < ds.length; d++) for (let b = 0; b < 15; b++) if (FONT[ds[d]][b] === '1') raw(x0 + d * 4 + (b % 3), 9 + ((b / 3) | 0), 1, 1, h.numCol);
@@ -644,8 +664,15 @@
       p(7, 6, 2, 1, SK);
       if (h.cut === 'shaved') { p(6, 0, 4, 1, SK); p(5, 1, 6, 5, SK); p(5, 1, 6, 1, SH); p(4, 3, 1, 2, SK); p(11, 3, 1, 2, SK); }
       else if (h.cut === 'afro') { p(5, 0, 6, 1, H); p(3, 1, 10, 5, H); p(4, 6, 8, 1, H); }
-      else if (h.cut === 'curly') { p(5, 0, 6, 1, H); p(4, 1, 8, 8, H); p(4, 2, 8, 1, h.band); }
-      else { p(6, 0, 4, 1, H); p(5, 1, 6, 5, H); p(4, 3, 1, 2, SK); p(11, 3, 1, 2, SK); if (h.cut === 'long') p(5, 6, 6, 3, H); }
+      else if (h.cut === 'curly') { p(5, 0, 6, 1, H); p(4, 1, 8, 8, H); if (h.band) p(4, 2, 8, 1, h.band); }
+      else if (h.cut === 'bald') { p(6, 0, 4, 1, SK); p(5, 1, 6, 5, SK); p(5, 3, 6, 3, H); p(4, 3, 1, 2, SK); p(11, 3, 1, 2, SK); } // thinning crown
+      else if (h.cut === 'mohawk') { p(5, 1, 6, 5, h.hair2); p(6, 0, 4, 4, H); p(4, 3, 1, 2, SK); p(11, 3, 1, 2, SK); } // bleached top, dark sides
+      else {
+        p(6, 0, 4, 1, H); p(5, 1, 6, 5, H); p(4, 3, 1, 2, SK); p(11, 3, 1, 2, SK);
+        if (h.cut === 'long') p(5, 6, 6, 3, H);
+        if (h.cut === 'ponytail') p(7, 6, 2, 3, H); // ends above the shirt number
+        if (h.cut === 'bun') p(7, 1, 2, 2, SH);
+      }
       const leg = (x) => { p(x, 22, 2, 5, SK); p(x, 27, 2, 4, h.socks); p(x - 1, 31, 3, 2, BT); };
       if (pose === 'stand') { p(3, 7, 1, 4, S); p(12, 7, 1, 4, S); p(3, 11, 1, 4, SK); p(12, 11, 1, 4, SK); leg(5); leg(9); }
       else if (pose === 'wide') { p(3, 7, 1, 4, S); p(12, 7, 1, 4, S); p(2, 11, 1, 4, SK); p(13, 11, 1, 4, SK); leg(4); leg(10); }
@@ -672,6 +699,7 @@
     });
   }
   let hero = 0, HS = null, cards = null; // selected hero, its sprites, selection-screen portraits (built on first open)
+  let heroPage = 0, heroFrom = 'title'; // 9 cards per page; where the pick screen returns to
   const starIcon = (c) => mk(5, 5, (p) => { p(2, 0, 1, 1, c); p(1, 1, 3, 1, c); p(0, 2, 5, 1, c); p(1, 3, 3, 1, c); p(1, 4, 1, 1, c); p(3, 4, 1, 1, c); });
   const STAR_ON = starIcon('#ffd020'), STAR_OFF = starIcon('#3a3a5a');
   function drawStars(n, x, y, sc) { for (let i = 0; i < 3; i++) ctx.drawImage(i < n ? STAR_ON : STAR_OFF, Math.round(x + (i - 1.5) * 8 * sc), y, 7 * sc, 7 * sc); }
@@ -883,6 +911,7 @@
     state = 'aim'; levelT = 0; stateT = 0; acc = 0; whistled = false; ptr = null; trail = []; fade = 0.8; kCheer = false; parts = [];
     showMsg('LEVEL ' + (level + 1), Math.round(world.L.dist) + 'M ' + sideName() + ' - ' + world.L.wallN + ' IN WALL', '#ffffff', 1.8, 4, starsBy[level] || 0);
   }
+  function openHeroes(from) { heroFrom = from; heroPage = Math.floor(hero / 9); state = 'heroes'; fade = 0.5; }
   function startGame(n) { level = n; lives = maxLives(); score = 0; streak = 0; runCheat = false; runXp = 0; spot = null; applyPerks(); setupLevel(); }
   function placeBall(dist, ang) { spot = { dist, ang }; makeWorld(); frameCam(); }
   function pickStyle(i) { shot.style = i; shot.u = STYLES[i].u * (HEROES[hero].foot === 'L' ? -1 : 1); shot.v = STYLES[i].v; hint = { t: 0, s: STYLES[i].name + ': ' + STYLES[i].desc }; }
@@ -955,15 +984,23 @@
     const [x, y] = loc(e);
     ripples.push({ x, y, t: 0 });
     if (state === 'heroes') {
-      const col = Math.floor((x - 3) / 89), row = Math.floor((y - 34) / 90);
-      if (y >= 34 && y < 304 && col >= 0 && col < 3) { selectHero(row * 3 + col); persist(); return; }
-      if (y >= 370 && y < 400) return startGame(far);
-      if (y >= 404 && y < 424) { state = 'title'; fade = 0.6; }
+      const pages = Math.ceil(HEROES.length / 9), col = Math.floor((x - 3) / 89), row = Math.floor((y - 34) / 90), i = heroPage * 9 + row * 3 + col;
+      if (y < 30 && x < 34) heroPage = (heroPage + pages - 1) % pages;
+      else if (y < 30 && x > 236) heroPage = (heroPage + 1) % pages;
+      else if (y >= 34 && y < 304 && col >= 0 && col < 3 && i < HEROES.length) { selectHero(i); persist(); }
+      else if (y >= 370 && y < 400) { if (heroFrom === 'pause') setupLevel(); else startGame(far); } // from pause: same level, score and balls
+      else if (y >= 404 && y < 424) { state = heroFrom; fade = 0.5; }
+      return;
+    }
+    if (state === 'pause') {
+      if (y >= 180 && y < 208) state = 'aim'; // RESUME
+      else if (y >= 214 && y < 232) openHeroes('pause');
+      else if (y >= 238 && y < 256) { state = 'title'; fade = 0.6; } // MAIN MENU
       return;
     }
     if (state === 'title') {
       if (y >= 282 && y < 300) return startGame(0); // NEW GAME
-      if (y >= 326 && y < 344) { state = 'heroes'; fade = 0.6; return; } // PLAYER
+      if (y >= 326 && y < 344) return openHeroes('title'); // PLAYER
       if (y >= 304 && y < 322) { // cycle through unlocked balls
         do skin = (skin + 1) % BALL_SKINS.length; while (!unlocked(skin));
         useSkin(skin); persist(); return;
@@ -977,6 +1014,7 @@
     }
     if (state === 'result') { if (stateT > 0.9) advance(); return; }
     if (state !== 'aim') return;
+    if (x >= W - 22 && y < 20) { state = 'pause'; return; } // pause / menu button
     let mode = null;
     if (y >= CHIP_Y - 2 && y < CHIP_Y + 14) {
       const c = CHIPS[Math.floor((x - 3) / 67)];
@@ -1253,8 +1291,10 @@
     const L = world.L;
     text('LV ' + (L.n + 1), 4, 4, 2);
     text(Math.round(L.dist) + 'M ' + sideName(), 4, 17, 1, '#c8e8ff');
-    text('SCORE ' + shownScore, W - 4, 4, 1, '#ffe040', 1);
-    text('BEST ' + best, W - 4, 12, 1, '#a0a8c0', 1);
+    bevel(W - 18, 2, 16, 14, '#2a3264', '#4a56a0', '#141834'); // pause / menu
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(W - 14, 5, 3, 8); ctx.fillRect(W - 9, 5, 3, 8);
+    text('SCORE ' + shownScore, W - 22, 4, 1, '#ffe040', 1);
+    text('BEST ' + best, W - 22, 12, 1, '#a0a8c0', 1);
     for (let i = 0; i < lives; i++) ctx.drawImage(BALL.x[0], W - 11 - i * 9, 20, 7, 7);
     text(Sim.RANKS[rank()].name, W - 4, CHIP_Y + 16, 1, '#60e0ff', 1);
     if (streak > 0) text('STREAK ' + streak + '  NEXT GOAL X' + Sim.multiplier(streak), 4, CHIP_Y + 16, 1, streak >= 3 ? '#ff8030' : '#ffe060');
@@ -1345,12 +1385,22 @@
       if (msg.extra) text(msg.extra, W / 2, ly, 1, '#60e0ff', 0.5);
     }
     const btn = (label, y, h, hot) => { bevel(50, y, 170, h, hot ? '#c82828' : '#2a3264', hot ? '#ff9090' : '#4a56a0', hot ? '#801010' : '#141834'); text(label, W / 2, y + (h - 5 * (h > 20 ? 2 : 1)) / 2, h > 20 ? 2 : 1, '#ffffff', 0.5); };
+    if (state === 'pause') {
+      ctx.fillStyle = 'rgba(6,8,24,0.75)'; ctx.fillRect(0, 0, W, H);
+      text('PAUSED', W / 2, 120, 5, '#ffffff', 0.5);
+      text('LEVEL ' + (level + 1) + '   SCORE ' + score + '   ' + HEROES[hero].name, W / 2, 158, 1, '#ffe060', 0.5);
+      btn('RESUME', 180, 28, true); btn('CHANGE PLAYER', 214, 18, false); btn('MAIN MENU', 238, 18, false);
+    }
     if (state === 'heroes') {
       ctx.fillStyle = 'rgba(6,8,24,0.88)'; ctx.fillRect(0, 0, W, H);
       text('PICK YOUR TAKER', W / 2, 12, 2, '#ffe040', 0.5);
+      const pages = Math.ceil(HEROES.length / 9);
+      bevel(4, 6, 26, 20, '#2a3264', '#4a56a0', '#141834'); text('<', 17, 12, 2, '#ffffff', 0.5);
+      bevel(240, 6, 26, 20, '#2a3264', '#4a56a0', '#141834'); text('>', 253, 12, 2, '#ffffff', 0.5);
+      text((heroPage + 1) + '/' + pages, W / 2, 25, 1, '#a0a8c0', 0.5);
       cards = cards || HEROES.map((h) => heroSprite(h, h.stance));
-      HEROES.forEach((h, i) => {
-        const x = 3 + (i % 3) * 89, y = 34 + ((i / 3) | 0) * 90, sel = i === hero;
+      HEROES.slice(heroPage * 9, heroPage * 9 + 9).forEach((h, j) => {
+        const i = heroPage * 9 + j, x = 3 + (j % 3) * 89, y = 34 + ((j / 3) | 0) * 90, sel = i === hero;
         bevel(x, y, 86, 86, sel ? '#3a3010' : '#1a1e40', sel ? '#ffe060' : '#4a56a0', sel ? '#a07800' : '#0a0c1c');
         ctx.drawImage(cards[i], x + 25, y + 4 - (sel && Math.sin(tnow * 3) > 0 ? 2 : 0), 36, 70); // the picked one breathes
         text(h.name, x + 43, y + 77, 1, sel ? '#ffe060' : '#ffffff', 0.5);
@@ -1361,7 +1411,7 @@
       text('RUN-UP: ' + h.run, W / 2, 322, 1, '#c8e8ff', 0.5);
       text('SIGNATURE KICK: ' + STYLES[h.style].name, W / 2, 334, 1, '#c8e8ff', 0.5);
       text(h.perk, W / 2, 346, 1, '#60ff90', 0.5);
-      btn('PLAY AS ' + h.name, 372, 28, true);
+      btn(heroFrom === 'pause' ? 'BACK IN AS ' + h.name : 'PLAY AS ' + h.name, 372, 28, true);
       btn('BACK', 406, 18, false);
     }
     if (state === 'title' || state === 'over') {
@@ -1448,7 +1498,7 @@
   makeDefenders();
   frameCam();
   // battery: a still screen nobody has touched for 20 s draws every 4th frame; any touch is back to full rate next frame
-  const idle = () => (state === 'title' || state === 'over' || state === 'aim' || state === 'heroes') && !ptr && tnow - lastTouch > 20 && excite < 0.05 && !confetti.length && !parts.length && !ripples.length && fade <= 0 && flash <= 0;
+  const idle = () => (state === 'title' || state === 'over' || state === 'aim' || state === 'heroes' || state === 'pause') && !ptr && tnow - lastTouch > 20 && excite < 0.05 && !confetti.length && !parts.length && !ripples.length && fade <= 0 && flash <= 0;
   let last = performance.now(), pending = 0, frameNo = 0;
   function frame(now) {
     requestAnimationFrame(frame); // first, so one bad frame can't freeze the game
@@ -1461,5 +1511,13 @@
     catch (err) { text('ERROR ' + String(err.message).slice(0, 60), 2, H - 8, 1, '#ff4040'); } // visible on-device for bug reports
   }
   requestAnimationFrame(frame);
+  window.__back = () => { // Android back: opens/closes the menu; only quits the app from the title screen
+    if (state === 'aim') state = 'pause';
+    else if (state === 'pause') state = 'aim';
+    else if (state === 'heroes') { state = heroFrom; fade = 0.5; }
+    else if (state === 'over') { state = 'title'; fade = 0.6; }
+    else return state !== 'title'; // mid-shot: ignore
+    return true;
+  };
   window.__rfk = { Sim, get world() { return world; }, get state() { return state; }, shot }; // handle for automated checks
 })();

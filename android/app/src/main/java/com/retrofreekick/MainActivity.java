@@ -34,6 +34,12 @@ public class MainActivity extends Activity {
                 | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
     }
 
+    @SuppressWarnings("deprecation")
+    @Override
+    public void onBackPressed() { // the game decides: back opens its menu, and only quits from the title screen
+        web.evaluateJavascript("window.__back ? window.__back() : false", (r) -> { if (!"true".equals(r)) finish(); });
+    }
+
     @Override
     protected void onPause() { super.onPause(); web.onPause(); web.pauseTimers(); } // no JS ticking in the background
 
