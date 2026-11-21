@@ -44,8 +44,8 @@
     };
   }
 
-  function newWorld(n, seed) {
-    const L = makeLevel(n), rng = mulberry32(seed | 0), a = L.ang * DEG;
+  function newWorld(n, seed, spot) { // spot: optional { dist, ang } chosen by the player
+    const L = Object.assign(makeLevel(n), spot), rng = mulberry32(seed | 0), a = L.ang * DEG;
     const ball = { x: L.dist * Math.sin(a), y: R, z: -L.dist * Math.cos(a), vx: 0, vy: 0, vz: 0, sx: 0, sy: 0, sz: 0, rot: 0, held: false };
     const yaw0 = Math.atan2(-ball.x, -ball.z);
     const side = Math.abs(L.ang) > 5 ? Math.sign(L.ang) : 0;
@@ -66,12 +66,15 @@
     };
   }
 
-  // shot: { style: 0-3, aim: -1..1, power: 0..1, u: -1..1 (strike point, right +), v: -1..1 (up +) }
+  // shot: { style: 0-3, aim: -1..1, power: 0..1, u: -1..1 (strike point, right +), v: -1..1 (up +),
+  //         mega: top power 1000 km/h, insane: 4x sidespin, assist: ball homes into the net }
+  const MEGA_V = 1000 / 3.6;
+  const speedOf = (shot) => { const st = STYLES[shot.style]; return st.vMin + ((shot.mega ? MEGA_V : st.vMax) - st.vMin) * shot.power; };
   function launch(w, shot, b) {
-    const st = STYLES[shot.style];
-    const speed = st.vMin + (st.vMax - st.vMin) * shot.power;
-    const yaw = w.yaw0 + shot.aim * 0.35 + st.spin * shot.u * 0.05; // off-centre contact starts it on the outside of the bend
-    const el = (st.elev - shot.v * 9) * DEG, side = -shot.u * st.spin, top = shot.v * st.top;
+    const st = STYLES[shot.style], speed = speedOf(shot), cm = shot.insane ? 4 : 1;
+    const yaw = w.yaw0 + shot.aim * (shot.insane ? 0.8 : 0.35) + st.spin * shot.u * 0.05 * cm; // off-centre contact starts it on the outside of the bend
+    // harder strikes launch flatter: no change up to 34 m/s, keeps 1000 km/h shots inside the stadium
+    const el = (st.elev - shot.v * 9) * DEG * Math.min(1, 34 / speed), side = -shot.u * st.spin * cm, top = shot.v * st.top;
     b.vx = Math.sin(yaw) * Math.cos(el) * speed; b.vy = Math.sin(el) * speed; b.vz = Math.cos(yaw) * Math.cos(el) * speed;
     b.sx = top * Math.cos(yaw); b.sy = side; b.sz = -top * Math.sin(yaw);
     return st;
@@ -80,6 +83,11 @@
   function kick(w, shot) {
     w.st = launch(w, shot, w.ball);
     w.wob = w.st.knuckle ? [3.5 + w.rng() * 2, w.rng() * 6.283, 4 + w.rng() * 2, w.rng() * 6.283] : null;
+    w.assist = null;
+    if (shot.assist) { // home on the spot in the goal nearest to where the shot was heading anyway
+      const c = preview(w, Object.assign({}, shot, { assist: false }), 80).find((q) => q[2] >= 0);
+      w.assist = { x: clamp(c ? c[0] : shot.aim * HW, -HW + 0.6, HW - 0.6), y: clamp(c ? c[1] : 1.5, 0.5, GH - 0.5), z: 0.8 };
+    }
     w.phase = 'flight'; w.ft = 0;
   }
 
@@ -115,9 +123,12 @@
   // ball path with no wobble and no collisions: the aiming arc, and the tests
   function preview(w, shot, maxD) {
     const b = Object.assign({}, w.ball), st = launch(w, shot, b), pts = [];
-    for (let i = 1; i < 2400; i++) {
-      move(b, w, 1 / 240, i / 240, st.late, null, null);
-      if (i % 3 === 0) pts.push([b.x, b.y, b.z]);
+    let t = 0, gap = 0; // dot every 0.3 m and step <= 10 cm, so 1000 km/h shots get a proper arc too
+    for (let i = 0; i < 6000; i++) {
+      const sp = Math.hypot(b.vx, b.vy, b.vz) || 1, dt = Math.min(1 / 240, 0.1 / sp);
+      t += dt; gap += sp * dt;
+      move(b, w, dt, t, st.late, null, null);
+      if (gap >= 0.3) { gap = 0; pts.push([b.x, b.y, b.z]); }
       if (Math.hypot(b.x - w.start.x, b.z - w.start.z) > maxD) break;
     }
     return pts;
@@ -174,10 +185,29 @@
     k.ax = k.bx - (ex / el) * len; k.ay = Math.max(0.1, k.by - (ey / el) * len);
   }
 
+  // aim assist: steer the velocity toward a waypoint over the wall, then the target; turns harder as it closes in
+  function home(w, b, dt) {
+    const T = w.assist, clear = WALL_D + 0.5, lx = T.x - w.start.x, lz = T.z - w.start.z, ll = Math.hypot(lx, lz);
+    let tx = T.x, ty = T.y, tz = T.z;
+    if (((b.x - w.start.x) * lx + (b.z - w.start.z) * lz) / ll < clear - 0.3) { // progress measured along start -> target
+      const f = clear / Math.max(clear + 1, ll);
+      tx = w.start.x + lx * f; tz = w.start.z + lz * f; ty = 2.9;
+    }
+    const dx = tx - b.x, dy = ty - b.y, dz = tz - b.z, d = Math.hypot(dx, dy, dz) || 1;
+    const sp = Math.max(18, Math.hypot(b.vx, b.vy, b.vz)), k = Math.min(1, (dt * sp * 3) / Math.max(d, 1.5));
+    b.vx += ((dx / d) * sp - b.vx) * k; b.vy += ((dy / d) * sp - b.vy) * k; b.vz += ((dz / d) * sp - b.vz) * k;
+  }
+
+  // substeps keep the ball moving <= 10 cm per tick, so even 1000 km/h shots can't skip through the wall or posts
   function step(w, dt) {
-    const ev = [];
+    const ev = [], b = w.ball;
     if (w.phase !== 'flight') return ev;
-    const b = w.ball, k = w.keeper, e = w.ev;
+    const n = Math.min(40, Math.max(1, Math.ceil((Math.hypot(b.vx, b.vy, b.vz) * dt) / 0.1)));
+    for (let i = 0; i < n; i++) tick(w, dt / n, ev);
+    return ev;
+  }
+  function tick(w, dt, ev) {
+    const b = w.ball, k = w.keeper, e = w.ev, ghost = !!w.assist && !e.goal; // assisted ball passes through wall/keeper/frame
     w.ft += dt;
     const t = w.ft;
     for (const d of w.wall) { const p = (t - d.jt) / 0.55; d.y = p > 0 && p < 1 ? 4 * d.jh * p * (1 - p) : 0; }
@@ -186,11 +216,12 @@
     else {
       const px = b.x, py = b.y, pz = b.z;
       move(b, w, dt, t, w.st.late, w.wob, ev);
+      if (ghost) home(w, b, dt);
       b.rot += dt * (Math.hypot(b.sx, b.sy, b.sz) * 35 + (w.wob ? 0.4 : 0) + Math.hypot(b.vx, b.vz) * 0.05);
 
       // wall: boxes per defender in the wall's own frame
       const fx = Math.sin(w.wallYaw), fz = Math.cos(w.wallYaw);
-      for (const d of w.wall) {
+      for (const d of ghost ? [] : w.wall) {
         const rx = b.x - d.x, rz = b.z - d.z, al = rx * fx + rz * fz, la = rx * fz - rz * fx, hy = b.y - d.y;
         const half = hy > 1.6 ? 0.13 : 0.27;
         if (Math.abs(al) < 0.15 + R && Math.abs(la) < half + R && hy > -R && hy < 1.86 + R) {
@@ -215,14 +246,14 @@
           ev.push('post');
         }
       };
-      for (const sx of [-HW, HW]) {
+      for (const sx of ghost ? [] : [-HW, HW]) {
         const dx = b.x - sx, d = Math.hypot(dx, b.z);
         if (d < R + PR && d > 1e-6 && b.y < GH + PR) hit(dx / d, 0, b.z / d, d);
       }
-      if (Math.abs(b.x) < HW) { const dy = b.y - GH, d = Math.hypot(dy, b.z); if (d < R + PR && d > 1e-6) hit(0, dy / d, b.z / d, d); }
+      if (!ghost && Math.abs(b.x) < HW) { const dy = b.y - GH, d = Math.hypot(dy, b.z); if (d < R + PR && d > 1e-6) hit(0, dy / d, b.z / d, d); }
 
       // keeper: capsule from feet/hips (a) to hands (b) in his plane
-      if (k.cool <= 0 && Math.abs(b.z - k.z) < 0.25 + R) {
+      if (!ghost && k.cool <= 0 && Math.abs(b.z - k.z) < 0.25 + R) {
         const c = seg(b.x, b.y, k.ax, k.ay, k.bx, k.by);
         if (c.d < 0.22 + R) {
           const sp = Math.hypot(b.vx, b.vy, b.vz);
@@ -246,14 +277,15 @@
         if (Math.abs(cx) < HW && cy < GH) {
           e.goal = { x: cx, y: cy };
           e.target = w.L.targets && TARGETS.some((q) => Math.hypot(cx - q[0], cy - q[1]) < TARGET_R);
-        } else if (!e.out) e.out = { x: cx, y: cy };
+        } else if (!e.out && !ghost) e.out = { x: cx, y: cy };
       }
 
       // nets: back, sides, roof
       const inX = Math.abs(b.x) < HW, inY = b.y < GH, inZ = b.z > 0 && b.z < ND;
+      if (ghost && inX && inY && b.z > R && b.z < ND) e.goal = { x: b.x, y: b.y }; // mega curve can swing it in from the side
       if (pz < ND && b.z >= ND && inX && inY) { b.z = ND - 0.01; b.vz *= -0.1; b.vx *= 0.4; b.vy *= 0.4; ev.push('net'); }
-      if (inZ && inY && (Math.abs(px) < HW) !== inX) { b.x = px; b.vx *= -0.2; b.vz *= 0.6; ev.push('sidenet'); }
-      if (inZ && inX && (py < GH) !== inY) { b.y = py; b.vy *= -0.2; b.vz *= 0.6; ev.push('sidenet'); }
+      if (!ghost && inZ && inY && (Math.abs(px) < HW) !== inX) { b.x = px; b.vx *= -0.2; b.vz *= 0.6; ev.push('sidenet'); }
+      if (!ghost && inZ && inX && (py < GH) !== inY) { b.y = py; b.vy *= -0.2; b.vz *= 0.6; ev.push('sidenet'); }
     }
 
     if (!w.result) {
@@ -267,10 +299,9 @@
       else if (t > 4 || (sp < 0.5 && b.y < R + 0.01)) w.result = why();
       if (w.result) ev.push('result');
     }
-    return ev;
   }
 
-  const Sim = { STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview };
+  const Sim = { STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview, speed: speedOf };
   if (typeof module !== 'undefined' && module.exports) { module.exports = Sim; return; }
 
   // =================================================================== BROWSER
@@ -651,24 +682,28 @@
   // ------------------------------------------------------------------ game state
   let state = 'title', world, level = 0, lives = 3, score = 0, best = 0;
   let levelT = 0, stateT = 0, tnow = 0, excite = 0, acc = 0, whistled = true, msg = null, hint = null, ptr = null;
-  const shot = { style: 1, aim: 0, power: 0.6, u: STYLES[1].u, v: STYLES[1].v };
+  const shot = { style: 1, aim: 0, power: 0.6, u: STYLES[1].u, v: STYLES[1].v, mega: false, insane: false, assist: false };
+  let spot = null, seed = 1, moving = false; // player-chosen kick spot for the current level
+  const CHIPS = [['MOVE', 'move'], ['1000KM/H', 'mega'], ['MEGA CURVE', 'insane'], ['AIM ASSIST', 'assist']], CHIP_Y = 32;
   try { best = +localStorage.getItem('rfk-best') || 0; } catch (_) {}
   const saveBest = () => { try { localStorage.setItem('rfk-best', String(best)); } catch (_) {} };
   const showMsg = (big, sub, col, dur = 2.6, sc = 5) => (msg = { t: 0, big, sub, col, dur, sc });
   const sideName = () => (world.L.ang < -5 ? 'LEFT' : world.L.ang > 5 ? 'RIGHT' : 'CENTRE');
 
   function setupLevel() {
-    world = Sim.newWorld(level, (Math.random() * 2147483647) | 0);
+    seed = (Math.random() * 2147483647) | 0; moving = false;
+    world = Sim.newWorld(level, seed, spot);
     makeDefenders(); frameCam(); nd.fill(0); nv.fill(0);
     state = 'aim'; levelT = 0; stateT = 0; acc = 0; whistled = false; ptr = null;
     showMsg('LEVEL ' + (level + 1), Math.round(world.L.dist) + 'M ' + sideName() + ' - ' + world.L.wallN + ' IN WALL', '#ffffff', 1.6, 4);
   }
-  function startGame() { level = 0; lives = 3; score = 0; setupLevel(); }
+  function startGame() { level = 0; lives = 3; score = 0; spot = null; setupLevel(); }
+  function placeBall(dist, ang) { spot = { dist, ang }; world = Sim.newWorld(level, seed, spot); frameCam(); }
   function pickStyle(i) { shot.style = i; shot.u = STYLES[i].u; shot.v = STYLES[i].v; hint = { t: 0, s: STYLES[i].name + ': ' + STYLES[i].desc }; }
   function doKick() {
     if (state !== 'aim') return;
     Sim.kick(world, shot);
-    state = 'flight'; stateT = 0; acc = 0; ptr = null; msg = null;
+    state = 'flight'; stateT = 0; acc = 0; ptr = null; msg = null; moving = false;
     sfx('kick');
   }
   function onResult() {
@@ -687,7 +722,7 @@
     }
   }
   function advance() {
-    if (world.result === 'goal') { level++; lives = 3; setupLevel(); } // 3 balls per level, refilled on every goal
+    if (world.result === 'goal') { level++; lives = 3; spot = null; setupLevel(); } // 3 balls per level, refilled on every goal
     else if (--lives <= 0) { state = 'over'; stateT = 0; msg = null; }
     else setupLevel();
   }
@@ -714,14 +749,21 @@
     if (state === 'result') { if (stateT > 0.9) advance(); return; }
     if (state !== 'aim') return;
     let mode = null;
+    if (y >= CHIP_Y - 2 && y < CHIP_Y + 14) {
+      const c = CHIPS[Math.floor((x - 3) / 67)];
+      if (c) { if (c[1] === 'move') moving = !moving; else shot[c[1]] = !shot[c[1]]; }
+      return;
+    }
     if (y >= 393 && y < 413) { const i = Math.floor((x - 3) / 66); if (i >= 0 && i < 4) pickStyle(i); return; }
     if (x > 188 && y >= 413) mode = 'whip';
     else if (x < 188 && y >= 413 && y < 429) mode = 'aim';
     else if (x < 188 && y >= 429 && y < 446) mode = 'pwr';
     else if (x < 188 && y >= 446) return doKick();
-    else if (y < UI_Y) mode = 'swipe';
+    else if (y < UI_Y) mode = moving ? 'move' : 'swipe';
     if (!mode) return;
-    ptr = { id: e.pointerId, mode, sx: x, sy: y, u0: shot.u, pts: [[x, y]], live: false };
+    const fl = Math.hypot(cam.f[0], cam.f[2]); // screen axes on the ground at drag start, for MOVE
+    ptr = { id: e.pointerId, mode, sx: x, sy: y, u0: shot.u, pts: [[x, y]], live: false,
+      bx: world.ball.x, bz: world.ball.z, rx: cam.r[0], rz: cam.r[2], fx: cam.f[0] / fl, fz: cam.f[2] / fl };
     try { cv.setPointerCapture(e.pointerId); } catch (_) {}
     drag(x, y);
   });
@@ -743,6 +785,11 @@
       shot.u = u; shot.v = v;
     } else if (p.mode === 'aim') shot.aim = clamp(((x - BAR_X) / BAR_W) * 2 - 1, -1, 1);
     else if (p.mode === 'pwr') shot.power = clamp((x - BAR_X) / BAR_W, 0, 1);
+    else if (p.mode === 'move') { // drag up/down = closer/further, left/right = across the pitch
+      const dx = (x - p.sx) * 0.12, dy = (y - p.sy) * 0.12, bx = p.bx + p.rx * dx - p.fx * dy, bz = p.bz + p.rz * dx - p.fz * dy;
+      const d = clamp(Math.hypot(bx, bz), 17, 40), lim = Math.min(60, Math.asin(Math.min(1, 32 / d)) / DEG); // stay inside the touchlines
+      placeBall(d, clamp(Math.atan2(bx, -bz) / DEG, -lim, lim));
+    }
     else { // swipe: direction = aim, length = power, sideways bow of the finger path = extra whip
       p.pts.push([x, y]);
       const dx = x - p.sx, dy = y - p.sy, L = Math.hypot(dx, dy);
@@ -885,6 +932,11 @@
   }
 
   function hud() {
+    CHIPS.forEach(([label, key], i) => {
+      const on = key === 'move' ? moving : shot[key], x = 3 + i * 67;
+      bevel(x, CHIP_Y, 64, 12, on ? '#30d070' : 'rgba(20,24,56,0.85)', on ? '#a0ffc0' : '#4a56a0', on ? '#108040' : '#141834');
+      text(label, x + 32, CHIP_Y + 4, 1, on ? '#002010' : '#d0dcff', 0.5, on ? null : '#000000');
+    });
     const L = world.L;
     text('LV ' + (L.n + 1), 4, 4, 2);
     text(Math.round(L.dist) + 'M ' + sideName(), 4, 17, 1, '#c8e8ff');
@@ -925,7 +977,7 @@
       const x0 = Math.round((BAR_W - 2) * a), x1 = Math.min(pw, Math.round((BAR_W - 2) * b));
       if (x1 > x0) { ctx.fillStyle = c; ctx.fillRect(BAR_X + 1 + x0, 432, x1 - x0, 9); }
     });
-    text(Math.round(shot.power * 100) + '%', BAR_X + BAR_W - 3, 434, 1, '#ffffff', 1);
+    text(Math.round(Sim.speed(shot) * 3.6) + 'KM/H', BAR_X + BAR_W - 3, 434, 1, '#ffffff', 1);
     // kick
     const pulse = live && Math.floor(tnow * 3) & 1;
     bevel(4, 448, 176, 28, live ? (pulse ? '#e03838' : '#c82828') : '#4a2a30', live ? '#ff9090' : '#6a4a50', live ? '#801010' : '#2a1018');
@@ -939,6 +991,7 @@
     const side = -shot.u * st.spin, whip = Math.round(Math.min(1, Math.abs(side)) * 100);
     text(st.knuckle ? 'NO SPIN' : 'WHIP ' + whip + '% ' + (whip < 5 ? '' : side < 0 ? '<' : '>'), WX, 415, 1, '#ffe060', 0.5);
     if (live && hint && hint.t < 2.2) text(hint.s, W / 2, UI_Y - 9, 1, '#ffe060', 0.5);
+    else if (live && moving) text('DRAG TO MOVE THE BALL - TAP MOVE TO LOCK', W / 2, UI_Y - 9, 1, '#60ff90', 0.5);
     else if (live && level < 2 && Math.floor(tnow * 1.5) & 1) text('SWIPE UP TO SHOOT', W / 2, UI_Y - 9, 1, '#ffffff', 0.5);
   }
 
@@ -984,7 +1037,7 @@
     updateCam(dt);
     if (AC) {
       const b = world.ball, fl = state === 'flight' && !b.held, t = AC.currentTime;
-      const sp = fl ? Math.hypot(b.vx, b.vy, b.vz) : 0, spin = fl ? Math.hypot(b.sx, b.sy, b.sz) : 0;
+      const sp = fl ? Math.hypot(b.vx, b.vy, b.vz) : 0, spin = fl ? Math.min(1, Math.hypot(b.sx, b.sy, b.sz)) : 0;
       whoosh.g.gain.setTargetAtTime(fl ? clamp((sp - 4) / 30, 0, 1) * (0.05 + spin * 0.12 + (world.wob ? 0.08 : 0)) : 0, t, 0.05);
       whoosh.f.frequency.setTargetAtTime(400 + sp * 30 + (world.wob ? Math.sin(tnow * 40) * 250 : spin * 600), t, 0.03);
       crowd.g.gain.setTargetAtTime(0.03 + excite * 0.12, t, 0.3);

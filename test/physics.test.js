@@ -48,3 +48,29 @@ test('every scripted level can be scored', () => {
     assert.ok(found, 'level ' + (L + 1) + ' has no scoring shot');
   }
 });
+
+test('1000 km/h top speed, and that shot does not tunnel through the wall', () => {
+  assert.equal(Math.round(Sim.speed({ style: 0, power: 1, mega: true }) * 3.6), 1000);
+  assert.equal(fly(0, { style: 0, aim: 0, power: 1, u: 0, v: 0.25, mega: true }).result, 'wall');
+});
+
+test('mega curve bends several times harder', () => {
+  const s = { style: 1, aim: 0, power: 0.6, u: 0.7, v: 0 };
+  assert.ok(endX({ ...s, insane: true }) < endX(s) * 3);
+});
+
+test('aim assist scores from anywhere, whatever the strike', () => {
+  for (const spot of [undefined, { dist: 17, ang: 0 }, { dist: 40, ang: -50 }, { dist: 30, ang: 55 }])
+    for (const style of [0, 1, 2, 3]) for (const aim of [-1, 0, 1]) for (const v of [-0.9, 0.9])
+      for (const mega of [false, true]) for (const insane of [false, true]) {
+        const w = Sim.newWorld(5, 3, spot);
+        Sim.kick(w, { style, aim, power: 1, u: 0.9, v, mega, insane, assist: true });
+        for (let i = 0; i < 240 * 6 && !w.result; i++) Sim.step(w, 1 / 240);
+        assert.equal(w.result, 'goal', JSON.stringify({ spot, style, aim, v, mega, insane }));
+      }
+});
+
+test('a chosen spot moves the ball', () => {
+  const w = Sim.newWorld(0, 1, { dist: 35, ang: 30 });
+  assert.ok(Math.abs(Math.hypot(w.ball.x, w.ball.z) - 35) < 1e-9 && w.ball.x > 0);
+});
