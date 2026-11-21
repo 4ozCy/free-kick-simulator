@@ -71,14 +71,14 @@
 
   // shot: { style: 0-3, aim: -1..1, power: 0..1, u: -1..1 (strike point, right +), v: -1..1 (up +),
   //         mega: top power 1000 km/h, insane: 4x sidespin, assist: ball homes into the net,
-  //         pw / cv: skill-perk bonuses to top speed / sidespin, e.g. 0.1 = +10% }
+  //         pw / cv / tp / kn: perk bonuses to top speed / sidespin / topspin dip / knuckle wobble, e.g. 0.1 = +10% }
   const MEGA_V = 1000 / 3.6;
   const speedOf = (shot) => { const st = STYLES[shot.style]; return st.vMin + ((shot.mega ? MEGA_V : st.vMax * (1 + (shot.pw || 0))) - st.vMin) * shot.power; };
   function launch(w, shot, b) {
     const st = STYLES[shot.style], speed = speedOf(shot), cm = (shot.insane ? 4 : 1) * (1 + (shot.cv || 0));
     const yaw = w.yaw0 + shot.aim * (shot.insane ? 0.8 : 0.35) + st.spin * shot.u * 0.05 * cm; // off-centre contact starts it on the outside of the bend
     // harder strikes launch flatter: no change up to 34 m/s, keeps 1000 km/h shots inside the stadium
-    const el = clamp(st.elev - shot.v * st.loft, 1, 30) * DEG * Math.min(1, 34 / speed), side = -shot.u * st.spin * cm, top = st.top0 + shot.v * st.top;
+    const el = clamp(st.elev - shot.v * st.loft, 1, 30) * DEG * Math.min(1, 34 / speed), side = -shot.u * st.spin * cm, top = (st.top0 + shot.v * st.top) * (1 + (shot.tp || 0));
     b.vx = Math.sin(yaw) * Math.cos(el) * speed; b.vy = Math.sin(el) * speed; b.vz = Math.cos(yaw) * Math.cos(el) * speed;
     b.sx = top * Math.cos(yaw); b.sy = side; b.sz = -top * Math.sin(yaw);
     return st;
@@ -86,7 +86,7 @@
 
   function kick(w, shot) {
     w.st = launch(w, shot, w.ball);
-    w.wob = w.st.knuckle ? [3.5 + w.rng() * 2, w.rng() * 6.283, 4 + w.rng() * 2, w.rng() * 6.283] : null;
+    w.wob = w.st.knuckle ? [3.5 + w.rng() * 2, w.rng() * 6.283, 4 + w.rng() * 2, w.rng() * 6.283, 1 + (shot.kn || 0)] : null;
     w.assist = null;
     if (shot.assist) { // home on the spot in the goal nearest to where the shot was heading anyway
       const c = preview(w, Object.assign({}, shot, { assist: false }), 80).find((q) => q[2] >= 0);
@@ -104,8 +104,8 @@
     A[2] = -d * rz + m * (b.sx * b.vy - b.sy * b.vx);
     if (wob) { // no spin: the wake sheds unevenly, so the ball gets shoved sideways and down at random
       const h = Math.hypot(b.vx, b.vz) || 1, k = clamp((Math.hypot(b.vx, b.vy, b.vz) - 14) / 14, 0, 1);
-      const lat = 7 * k * Math.sin(wob[0] * t + wob[1]);
-      A[0] += (lat * b.vz) / h; A[2] -= (lat * b.vx) / h; A[1] += 4 * k * Math.sin(wob[2] * t + wob[3]);
+      const lat = 7 * k * wob[4] * Math.sin(wob[0] * t + wob[1]);
+      A[0] += (lat * b.vz) / h; A[2] -= (lat * b.vx) / h; A[1] += 4 * k * wob[4] * Math.sin(wob[2] * t + wob[3]);
     }
     return A;
   }
@@ -601,31 +601,60 @@
       p(3, 30, 2, 2, '#151515'); p(7, 30, 2, 2, '#151515');
     }),
   };
-  const KB = '#2456d8', KBd = '#163a98', KHR = '#3a2412', WH = '#ffffff', BT = '#151515';
-  function kicker(pose) {
-    return mk(16, 33, (p) => {
-      p(6, 0, 4, 1, KHR); p(5, 1, 6, 5, KHR); p(4, 3, 1, 2, KS); p(11, 3, 1, 2, KS); p(7, 6, 2, 1, KS);
-      p(4, 7, 8, 11, KB); p(11, 7, 1, 11, KBd); p(6, 7, 4, 1, WH);
-      p(6, 9, 1, 5, WH); p(5, 10, 1, 1, WH); p(5, 13, 3, 1, WH); // 1
-      p(8, 9, 3, 1, WH); p(8, 13, 3, 1, WH); p(8, 10, 1, 3, WH); p(10, 10, 1, 3, WH); // 0
-      p(4, 18, 8, 4, '#f2f2f2'); p(11, 18, 1, 4, '#c4c4cc');
-      const leg = (x) => { p(x, 22, 2, 5, KS); p(x, 27, 2, 4, KB); p(x, 27, 2, 1, WH); p(x - 1, 31, 3, 2, BT); };
-      if (pose !== 'run2') leg(5); // standing / planted left leg
-      if (pose === 'stand') { p(3, 7, 1, 4, KB); p(12, 7, 1, 4, KBd); p(3, 11, 1, 4, KS); p(12, 11, 1, 4, KS); leg(9); }
-      else if (pose === 'run') { // left arm forward, right arm back, right foot kicked up behind
-        p(3, 7, 1, 3, KB); p(3, 10, 1, 2, KS); p(12, 7, 1, 4, KBd); p(13, 11, 1, 4, KS);
-        p(9, 22, 2, 3, KS); p(10, 25, 2, 2, KS); p(10, 27, 2, 2, KB); p(10, 29, 3, 2, BT);
-      } else if (pose === 'run2') { // other stride: right leg planted, left foot up behind, arms swapped
-        p(12, 7, 1, 3, KBd); p(12, 10, 1, 2, KS); p(3, 7, 1, 4, KB); p(2, 11, 1, 4, KS); leg(9);
-        p(5, 22, 2, 3, KS); p(4, 25, 2, 2, KS); p(4, 27, 2, 2, KB); p(3, 29, 3, 2, BT);
-      } else { // strike: arms out for balance, right leg swinging through
-        p(1, 8, 3, 2, KB); p(0, 8, 1, 2, KS); p(12, 8, 3, 2, KBd); p(15, 8, 1, 2, KS);
-        p(9, 22, 2, 2, KS); p(10, 23, 3, 2, KS); p(12, 24, 2, 2, KB); p(13, 25, 3, 2, BT);
+  // legendary takers: foot, stance, run-up (m back / m to the side, seconds, stride time), signature style + perk, kit and hair.
+  // Stances stay within ~1.6 m back and 1 m aside: further and the camera, 4.6 m behind the ball, loses them or they block the view.
+  const HEROES = [
+    { name: 'JUNINHO', foot: 'R', back: 1.5, side: 0.8, runT: 0.5, stepT: 0.09, stance: 'stand', style: 3, kn: 0.4, run: 'MEASURED, STRAIGHT',
+      perk: 'KNUCKLE KING: WILDER KNUCKLEBALL', skin: '#704020', hair: '#151515', cut: 'short', shirt: '#f2f2f2', num: 8, numCol: '#2040b0', shorts: '#f2f2f2', socks: '#2040b0' },
+    { name: 'MESSI', foot: 'L', back: 1.1, side: 0.8, runT: 0.38, stepT: 0.08, stance: 'stand', style: 1, cv: 0.15, guide: 3, run: 'SHORT AND QUICK',
+      perk: 'FINESSE: +15% CURVE, LONGER GUIDE', skin: '#e8b890', hair: '#4a2a14', cut: 'short', shirt: '#f2f2f2', stripe: '#78c0f0', num: 10, numCol: '#101828', shorts: '#101828', socks: '#f2f2f2' },
+    { name: 'CR7', foot: 'R', back: 1.6, side: 0.75, runT: 0.55, stepT: 0.11, stance: 'wide', style: 3, pw: 0.08, kn: 0.2, run: 'POWER STANCE, BIG STRIDES',
+      perk: 'TOMAHAWK: +8% POWER, KNUCKLE', skin: '#d8a070', hair: '#151515', cut: 'short', shirt: '#d01828', num: 7, numCol: '#f0d020', shorts: '#108040', socks: '#d01828' },
+    { name: 'BECKHAM', foot: 'R', back: 1.0, side: 1.0, runT: 0.5, stepT: 0.09, stance: 'stand', style: 1, cv: 0.25, run: 'WIDE ANGLE',
+      perk: 'BEND IT: +25% CURVE', skin: '#f0c8a0', hair: '#e8c860', cut: 'short', shirt: '#f2f2f2', num: 7, numCol: '#2030a0', shorts: '#2030a0', socks: '#f2f2f2' },
+    { name: 'R. CARLOS', foot: 'L', back: 1.6, side: 0.9, runT: 0.5, stepT: 0.07, stance: 'wide', style: 2, pw: 0.12, cv: 0.1, run: 'LONG AND FAST',
+      perk: 'BANANA BLAST: +12% POWER, +10% CURVE', skin: '#a86838', hair: '#a86838', cut: 'shaved', shirt: '#f8d820', num: 6, numCol: '#108040', shorts: '#2050c0', socks: '#f2f2f2' },
+    { name: 'RONALDINHO', foot: 'R', back: 1.0, side: 0.7, runT: 0.35, stepT: 0.09, stance: 'stand', style: 1, cv: 0.05, react: 0.06, run: 'SHORT, RELAXED',
+      perk: 'TRICKSTER: KEEPER REACTS LATE', skin: '#8a5428', hair: '#101010', cut: 'curly', band: '#ffffff', shirt: '#203c9c', stripe: '#a01838', num: 10, numCol: '#f0d020', shorts: '#203c9c', socks: '#203c9c' },
+    { name: 'KROOS', foot: 'R', back: 1.3, side: 1.0, runT: 0.45, stepT: 0.09, stance: 'hips', style: 1, guide: 6, run: 'CALM, ANGLED',
+      perk: 'METRONOME: MUCH LONGER AIM GUIDE', skin: '#f0c8a0', hair: '#a07a40', cut: 'short', shirt: '#f2f2f2', num: 8, numCol: '#101010', shorts: '#101010', socks: '#f2f2f2' },
+    { name: 'PIRLO', foot: 'R', back: 0.9, side: 0.9, runT: 0.55, stepT: 0.15, stance: 'hips', style: 0, tp: 0.35, run: 'A SLOW WALK-UP',
+      perk: 'MALEDETTA: EXTRA DIP', skin: '#e8b890', hair: '#2a1a10', cut: 'long', shirt: '#1c50c0', num: 21, numCol: '#ffffff', shorts: '#f2f2f2', socks: '#1c50c0' },
+    { name: 'DAVID LUIZ', foot: 'R', back: 1.6, side: 0.8, runT: 0.6, stepT: 0.08, stance: 'wide', style: 3, pw: 0.1, kn: 0.15, run: 'LONG, ON HIS TOES',
+      perk: 'ROCKET: +10% POWER, KNUCKLE', skin: '#d8a070', hair: '#3a2412', cut: 'afro', shirt: '#f8d820', num: 4, numCol: '#108040', shorts: '#2050c0', socks: '#f2f2f2' },
+  ];
+  function heroSprite(h, pose) { // seen from behind; left-footers are drawn mirrored, except the shirt number
+    return mk(16, 33, (raw) => {
+      const p = h.foot === 'L' ? (x, y, w, hh, c) => raw(16 - x - w, y, w, hh, c) : raw;
+      const SK = h.skin, S = h.shirt, H = h.hair, SH = 'rgba(0,0,0,0.22)', BT = '#151515';
+      p(4, 7, 8, 11, S);
+      if (h.stripe) for (let x = 5; x < 12; x += 2) p(x, 7, 1, 11, h.stripe);
+      p(11, 7, 1, 11, SH);
+      const ds = String(h.num), x0 = ds.length > 1 ? 4 : 6;
+      for (let d = 0; d < ds.length; d++) for (let b = 0; b < 15; b++) if (FONT[ds[d]][b] === '1') raw(x0 + d * 4 + (b % 3), 9 + ((b / 3) | 0), 1, 1, h.numCol);
+      p(4, 18, 8, 4, h.shorts); p(11, 18, 1, 4, SH);
+      p(7, 6, 2, 1, SK);
+      if (h.cut === 'shaved') { p(6, 0, 4, 1, SK); p(5, 1, 6, 5, SK); p(5, 1, 6, 1, SH); p(4, 3, 1, 2, SK); p(11, 3, 1, 2, SK); }
+      else if (h.cut === 'afro') { p(5, 0, 6, 1, H); p(3, 1, 10, 5, H); p(4, 6, 8, 1, H); }
+      else if (h.cut === 'curly') { p(5, 0, 6, 1, H); p(4, 1, 8, 8, H); p(4, 2, 8, 1, h.band); }
+      else { p(6, 0, 4, 1, H); p(5, 1, 6, 5, H); p(4, 3, 1, 2, SK); p(11, 3, 1, 2, SK); if (h.cut === 'long') p(5, 6, 6, 3, H); }
+      const leg = (x) => { p(x, 22, 2, 5, SK); p(x, 27, 2, 4, h.socks); p(x - 1, 31, 3, 2, BT); };
+      if (pose === 'stand') { p(3, 7, 1, 4, S); p(12, 7, 1, 4, S); p(3, 11, 1, 4, SK); p(12, 11, 1, 4, SK); leg(5); leg(9); }
+      else if (pose === 'wide') { p(3, 7, 1, 4, S); p(12, 7, 1, 4, S); p(2, 11, 1, 4, SK); p(13, 11, 1, 4, SK); leg(4); leg(10); }
+      else if (pose === 'hips') { p(3, 7, 1, 3, S); p(12, 7, 1, 3, S); p(2, 10, 1, 3, SK); p(13, 10, 1, 3, SK); p(3, 13, 1, 2, SK); p(12, 13, 1, 2, SK); leg(5); leg(9); }
+      else if (pose === 'run') { // non-kicking arm forward, other back, kicking foot up behind
+        p(3, 7, 1, 3, S); p(3, 10, 1, 2, SK); p(12, 7, 1, 4, S); p(13, 11, 1, 4, SK); leg(5);
+        p(9, 22, 2, 3, SK); p(10, 25, 2, 2, SK); p(10, 27, 2, 2, h.socks); p(10, 29, 3, 2, BT);
+      } else if (pose === 'run2') {
+        p(12, 7, 1, 3, S); p(12, 10, 1, 2, SK); p(3, 7, 1, 4, S); p(2, 11, 1, 4, SK); leg(9);
+        p(5, 22, 2, 3, SK); p(4, 25, 2, 2, SK); p(4, 27, 2, 2, h.socks); p(3, 29, 3, 2, BT);
+      } else { // strike: arms out, kicking leg swinging through
+        p(1, 8, 3, 2, S); p(0, 8, 1, 2, SK); p(12, 8, 3, 2, S); p(15, 8, 1, 2, SK); leg(5);
+        p(9, 22, 2, 2, SK); p(10, 23, 3, 2, SK); p(12, 24, 2, 2, h.socks); p(13, 25, 3, 2, BT);
       }
     });
   }
-  const KICKER = { stand: kicker('stand'), run: kicker('run'), run2: kicker('run2'), kick: kicker('kick') };
-  const RUN_T = 0.45; // run-up time; the ball leaves at foot contact
+  let hero = 0, HS = null, cards = null; // selected hero, its sprites, selection-screen portraits (built on first open)
   const starIcon = (c) => mk(5, 5, (p) => { p(2, 0, 1, 1, c); p(1, 1, 3, 1, c); p(0, 2, 5, 1, c); p(1, 3, 3, 1, c); p(1, 4, 1, 1, c); p(3, 4, 1, 1, c); });
   const STAR_ON = starIcon('#ffd020'), STAR_OFF = starIcon('#3a3a5a');
   function drawStars(n, x, y, sc) { for (let i = 0; i < 3; i++) ctx.drawImage(i < n ? STAR_ON : STAR_OFF, Math.round(x + (i - 1.5) * 8 * sc), y, 7 * sc, 7 * sc); }
@@ -789,19 +818,29 @@
   try {
     const d = JSON.parse(localStorage.getItem('rfk-save') || 'null');
     if (d && typeof d === 'object') {
-      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); xp = Math.max(0, d.xp | 0); skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
+      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); xp = Math.max(0, d.xp | 0); hero = clamp(d.hero | 0, 0, HEROES.length - 1); skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
       if (d.stars && typeof d.stars === 'object') for (const k in d.stars) starsBy[k] = clamp(d.stars[k] | 0, 0, 3);
     } else best = +localStorage.getItem('rfk-best') || 0; // pre-progression saves kept only the best score
   } catch (_) {}
-  const persist = () => { try { localStorage.setItem('rfk-save', JSON.stringify({ best, far, stars: starsBy, skin, xp })); } catch (_) {} };
+  const persist = () => { try { localStorage.setItem('rfk-save', JSON.stringify({ best, far, stars: starsBy, skin, xp, hero })); } catch (_) {} };
   const totalStars = () => Object.keys(starsBy).reduce((a, k) => a + starsBy[k], 0);
   const unlocked = (i) => totalStars() >= BALL_SKINS[i].need;
   if (!unlocked(skin)) skin = 0;
   const rank = () => Sim.rankOf(xp), maxLives = () => (rank() >= 2 ? 4 : 3);
-  function applyPerks() { shot.cv = rank() >= 3 ? 0.2 : 0; shot.pw = rank() >= 4 ? 0.1 : 0; }
+  function applyPerks() { // rank perks stack with the hero's signature
+    const h = HEROES[hero];
+    shot.cv = (rank() >= 3 ? 0.2 : 0) + (h.cv || 0); shot.pw = (rank() >= 4 ? 0.1 : 0) + (h.pw || 0); shot.tp = h.tp || 0; shot.kn = h.kn || 0;
+  }
+  function selectHero(i) {
+    hero = i;
+    const h = HEROES[i];
+    HS = { stance: heroSprite(h, h.stance), stand: heroSprite(h, 'stand'), run: heroSprite(h, 'run'), run2: heroSprite(h, 'run2'), kick: heroSprite(h, 'kick') };
+    applyPerks(); pickStyle(h.style);
+  }
   function makeWorld() {
     world = Sim.newWorld(level, seed, spot);
     if (rank() >= 5) { world.L.read = Math.max(0.1, world.L.read - 0.15); world.L.react += 0.05; } // MIND GAMES
+    world.L.react += HEROES[hero].react || 0;
   }
   const showMsg = (big, sub, col, dur = 2.6, sc = 5, st = -1, extra = '') => (msg = { t: 0, big, sub, col, dur, sc, st, extra });
   const sideName = () => (world.L.ang < -5 ? 'LEFT' : world.L.ang > 5 ? 'RIGHT' : 'CENTRE');
@@ -815,7 +854,7 @@
   }
   function startGame(n) { level = n; lives = maxLives(); score = 0; streak = 0; runCheat = false; runXp = 0; spot = null; applyPerks(); setupLevel(); }
   function placeBall(dist, ang) { spot = { dist, ang }; makeWorld(); frameCam(); }
-  function pickStyle(i) { shot.style = i; shot.u = STYLES[i].u; shot.v = STYLES[i].v; hint = { t: 0, s: STYLES[i].name + ': ' + STYLES[i].desc }; }
+  function pickStyle(i) { shot.style = i; shot.u = STYLES[i].u * (HEROES[hero].foot === 'L' ? -1 : 1); shot.v = STYLES[i].v; hint = { t: 0, s: STYLES[i].name + ': ' + STYLES[i].desc }; }
   function doKick() {
     if (state !== 'aim') return;
     state = 'runup'; stateT = 0; ptr = null; msg = null; moving = false; trail = [];
@@ -882,9 +921,17 @@
     initAudio(); lastTouch = tnow;
     if (ptr) return;
     const [x, y] = loc(e);
+    if (state === 'heroes') {
+      const col = Math.floor((x - 3) / 89), row = Math.floor((y - 34) / 90);
+      if (y >= 34 && y < 304 && col >= 0 && col < 3) { selectHero(row * 3 + col); persist(); return; }
+      if (y >= 370 && y < 400) return startGame(far);
+      if (y >= 404 && y < 424) state = 'title';
+      return;
+    }
     if (state === 'title') {
-      if (y >= 290 && y < 308) return startGame(0); // NEW GAME
-      if (y >= 312 && y < 330) { // cycle through unlocked balls
+      if (y >= 282 && y < 300) return startGame(0); // NEW GAME
+      if (y >= 326 && y < 344) { state = 'heroes'; return; } // PLAYER
+      if (y >= 304 && y < 322) { // cycle through unlocked balls
         do skin = (skin + 1) % BALL_SKINS.length; while (!unlocked(skin));
         useSkin(skin); persist(); return;
       }
@@ -1056,19 +1103,21 @@
     const set = Math.abs(b.sy) > Math.hypot(b.sx, b.sz) ? BALL.y : BALL.x;
     ctx.drawImage(set[((Math.floor((b.rot / (Math.PI * 2)) * 16) % 16) + 16) % 16], x, y, s, s);
   }
-  function kickerPos() { // waits behind-left of the ball (right-footed), runs to plant beside it
-    const s = world.start, fx = Math.sin(world.yaw0), fz = Math.cos(world.yaw0);
-    let back = 1.5, side = 0.9;
-    if (state === 'runup') { const e = Math.min(1, stateT / RUN_T); back -= 1.2 * e; side -= 0.58 * e; }
+  function kickerPos() { // stands at his own spot, runs in to plant beside the ball; left-footers come from the right
+    const h = HEROES[hero], s = world.start, fx = Math.sin(world.yaw0), fz = Math.cos(world.yaw0);
+    let back = h.back, side = h.side;
+    if (state === 'runup') { const e = Math.min(1, stateT / h.runT); back += (0.3 - back) * e; side += (0.32 - side) * e; }
     else if (state === 'flight' || state === 'result') { back = 0.3; side = 0.32; }
+    if (h.foot === 'L') side = -side;
     return [s.x - fx * back - fz * side, s.z - fz * back + fx * side];
   }
   function drawKicker(x, z) {
     const p = proj(x, 0, z);
     if (!p || p[3] < 2.2) return; // the dollying camera passes him: don't blow him up across the screen
-    const spr = state === 'runup' ? (Math.floor(stateT / 0.09) & 1 ? KICKER.run2 : KICKER.run) : state === 'flight' && stateT < 0.35 ? KICKER.kick : KICKER.stand;
+    const h = HEROES[hero], run = state === 'runup', after = state === 'flight' || state === 'result';
+    const spr = run ? (Math.floor(stateT / h.stepT) & 1 ? HS.run2 : HS.run) : state === 'flight' && stateT < 0.35 ? HS.kick : after ? HS.stand : HS.stance;
     shadow(x, z, 0.35, 0.3);
-    upright(spr, x, state === 'runup' ? Math.abs(Math.sin(stateT * 35)) * 0.06 : 0, z, 2.05);
+    upright(spr, x, run ? Math.abs(Math.sin((stateT * Math.PI) / h.stepT)) * 0.06 : 0, z, 2.05);
   }
   function wallPos(d, i) { // during the first second the wall shuffles across into its line
     if (state !== 'aim' && state !== 'title') return [d.x, d.y, d.z];
@@ -1105,7 +1154,7 @@
     items.sort((p, q) => q[0] - p[0]).forEach((it) => it[1]());
 
     if (state === 'aim' || state === 'runup') { // dotted launch arc for the first few metres
-      const pts = Sim.preview(world, shot, rank() >= 6 ? world.L.dist + 3 : rank() >= 1 ? 12 : 7); // LONG / FULL GUIDE perks
+      const pts = Sim.preview(world, shot, (rank() >= 6 ? world.L.dist + 3 : rank() >= 1 ? 12 : 7) + (HEROES[hero].guide || 0)); // guide perks
       pts.forEach((q, i) => {
         const p = proj(q[0], q[1], q[2]);
         if (!p) return;
@@ -1225,9 +1274,28 @@
       if (msg.st >= 0) { drawStars(msg.big === 'GOAL!' ? Math.min(msg.st, Math.floor(msg.t * 4)) : msg.st, W / 2, ly, 2); ly += 18; } // stars pop in one by one
       if (msg.extra) text(msg.extra, W / 2, ly, 1, '#60e0ff', 0.5);
     }
+    const btn = (label, y, h, hot) => { bevel(50, y, 170, h, hot ? '#c82828' : '#2a3264', hot ? '#ff9090' : '#4a56a0', hot ? '#801010' : '#141834'); text(label, W / 2, y + (h - 5 * (h > 20 ? 2 : 1)) / 2, h > 20 ? 2 : 1, '#ffffff', 0.5); };
+    if (state === 'heroes') {
+      ctx.fillStyle = 'rgba(6,8,24,0.88)'; ctx.fillRect(0, 0, W, H);
+      text('PICK YOUR TAKER', W / 2, 12, 2, '#ffe040', 0.5);
+      cards = cards || HEROES.map((h) => heroSprite(h, h.stance));
+      HEROES.forEach((h, i) => {
+        const x = 3 + (i % 3) * 89, y = 34 + ((i / 3) | 0) * 90, sel = i === hero;
+        bevel(x, y, 86, 86, sel ? '#3a3010' : '#1a1e40', sel ? '#ffe060' : '#4a56a0', sel ? '#a07800' : '#0a0c1c');
+        ctx.drawImage(cards[i], x + 25, y + 4, 36, 70);
+        text(h.name, x + 43, y + 77, 1, sel ? '#ffe060' : '#ffffff', 0.5);
+        text(h.foot, x + 81, y + 4, 1, '#60e0ff', 1);
+      });
+      const h = HEROES[hero];
+      text(h.name + ' - ' + (h.foot === 'L' ? 'LEFT' : 'RIGHT') + ' FOOT', W / 2, 310, 1, '#ffe060', 0.5);
+      text('RUN-UP: ' + h.run, W / 2, 322, 1, '#c8e8ff', 0.5);
+      text('SIGNATURE KICK: ' + STYLES[h.style].name, W / 2, 334, 1, '#c8e8ff', 0.5);
+      text(h.perk, W / 2, 346, 1, '#60ff90', 0.5);
+      btn('PLAY AS ' + h.name, 372, 28, true);
+      btn('BACK', 406, 18, false);
+    }
     if (state === 'title' || state === 'over') {
       ctx.fillStyle = 'rgba(6,8,24,0.72)'; ctx.fillRect(0, 0, W, H);
-      const btn = (label, y, h, hot) => { bevel(50, y, 170, h, hot ? '#c82828' : '#2a3264', hot ? '#ff9090' : '#4a56a0', hot ? '#801010' : '#141834'); text(label, W / 2, y + (h - 5 * (h > 20 ? 2 : 1)) / 2, h > 20 ? 2 : 1, '#ffffff', 0.5); };
       if (state === 'title') {
         text('RETRO', W / 2, 52, 7, '#ffe040', 0.5);
         text('FREE KICK', W / 2, 94, 4, '#ffffff', 0.5);
@@ -1237,12 +1305,13 @@
         const nx = BALL_SKINS.find((k) => k.need > totalStars());
         if (nx) text('NEXT BALL: ' + nx.name + ' AT ' + nx.need + ' STARS', W / 2, 184, 1, '#a0a8c0', 0.5);
         rankPanel(200);
-        btn(far > 0 ? 'CONTINUE LV ' + (far + 1) : 'PLAY', 256, 28, true);
-        btn('NEW GAME', 290, 18, false);
-        btn('BALL: ' + BALL_SKINS[skin].name + '  >', 312, 18, false);
-        text('SWIPE UP TO SHOOT. DRAG THE BALL', W / 2, 352, 1, '#c8e8ff', 0.5);
-        text('WIDGET TO PICK WHERE YOU STRIKE IT.', W / 2, 362, 1, '#c8e8ff', 0.5);
-        text('GOALS IN A ROW MULTIPLY YOUR POINTS.', W / 2, 376, 1, '#ffe060', 0.5);
+        btn(far > 0 ? 'CONTINUE LV ' + (far + 1) : 'PLAY', 250, 28, true);
+        btn('NEW GAME', 282, 18, false);
+        btn('BALL: ' + BALL_SKINS[skin].name + '  >', 304, 18, false);
+        btn('PLAYER: ' + HEROES[hero].name + '  >', 326, 18, false);
+        text('SWIPE UP TO SHOOT. DRAG THE BALL', W / 2, 354, 1, '#c8e8ff', 0.5);
+        text('WIDGET TO PICK WHERE YOU STRIKE IT.', W / 2, 364, 1, '#c8e8ff', 0.5);
+        text('GOALS IN A ROW MULTIPLY YOUR POINTS.', W / 2, 378, 1, '#ffe060', 0.5);
       } else {
         text('FULL TIME', W / 2, 110, 5, '#ff6a5a', 0.5);
         text('SCORE ' + score, W / 2, 160, 3, '#ffe040', 0.5);
@@ -1261,7 +1330,7 @@
     if (msg) msg.t += dt;
     if (hint) hint.t += dt;
     if (state === 'aim' && levelT > 0.4 && !whistled) { whistled = true; sfx('whistle'); }
-    if (state === 'runup' && stateT >= RUN_T) { Sim.kick(world, shot); state = 'flight'; stateT = 0; acc = 0; sfx('kick'); }
+    if (state === 'runup' && stateT >= HEROES[hero].runT) { Sim.kick(world, shot); state = 'flight'; stateT = 0; acc = 0; sfx('kick'); }
     shake = Math.max(0, shake - dt * 20);
     for (const c of confetti) { c.x += c.vx * dt + Math.sin(c.ph) * 0.5; c.y += c.vy * dt; c.ph += dt * 8; }
     confetti = confetti.filter((c) => c.y < H);
@@ -1288,11 +1357,11 @@
 
   world = Sim.newWorld(0, 1);
   useSkin(skin);
-  applyPerks();
+  selectHero(hero);
   makeDefenders();
   frameCam();
   // battery: a still screen nobody has touched for 20 s draws every 4th frame; any touch is back to full rate next frame
-  const idle = () => (state === 'title' || state === 'over' || state === 'aim') && !ptr && tnow - lastTouch > 20 && excite < 0.05 && !confetti.length;
+  const idle = () => (state === 'title' || state === 'over' || state === 'aim' || state === 'heroes') && !ptr && tnow - lastTouch > 20 && excite < 0.05 && !confetti.length;
   let last = performance.now(), pending = 0, frameNo = 0;
   function frame(now) {
     requestAnimationFrame(frame); // first, so one bad frame can't freeze the game

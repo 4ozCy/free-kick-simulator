@@ -132,3 +132,10 @@ test('keeper is beatable in the corners but still saves shots hit near him', () 
   assert.ok(farN > 10 && farS / farN < 0.35, `corner shots saved ${farS}/${farN}`);
   assert.ok(nearN > 10 && nearS / nearN > 0.5, `near shots saved ${nearS}/${nearN}`);
 });
+
+test('hero perks: extra topspin dips the ball lower, knuckle bonus wobbles it harder', () => {
+  const w = Sim.newWorld(6, 1), s = { style: 0, aim: 0, power: 0.8, u: 0, v: -0.6 };
+  assert.ok(Sim.preview(w, { ...s, tp: 0.35 }, 20).at(-1)[1] < Sim.preview(w, s, 20).at(-1)[1] - 0.3);
+  const x = (kn) => { const v = Sim.newWorld(6, 5); Sim.kick(v, { style: 3, aim: 0, power: 1, u: 0, v: 0, kn }); for (let i = 0; i < 220; i++) Sim.step(v, 1 / 240); return v.ball.x; };
+  assert.ok(Math.abs(x(1) - x(0)) > 0.05);
+});
