@@ -1,5 +1,0 @@
-# A robot wrote the game. Shutting robots out would be rude.
-User-agent: *
-Allow: /
-
-Sitemap: https://4ozcy.github.io/retro-free-kick/sitemap.xml
