@@ -87,14 +87,47 @@
     return st;
   }
 
+  // random events for CHAOS. push = force for dur seconds (osc: wobble), hit = one knock, speed = launch multiplier,
+  // react = seconds the keeper loses, and anything without an effect is pure show.
+  const CHAOS = [
+    { name: 'GUST', msg: 'GUST!', sub: 'WIND HITS THE BALL', push: [4, 0, 0, 1] },
+    { name: 'TAILWIND', msg: 'TAILWIND!', sub: 'FREE RIDE', push: [0, 0, 6, 1.5] },
+    { name: 'HEADWIND', msg: 'HEADWIND!', sub: 'IT PUSHES BACK', push: [0, 0, -6, 1.5] },
+    { name: 'BEE', msg: 'BEE!', sub: 'A BEE TAKES A SHINE TO IT', push: [3, 0, 0, 1.2, 12] },
+    { name: 'SUPER BOUNCY', msg: 'BOUNCY!', sub: 'THE BALL IS SUPER BOUNCY', push: [0, 6, 0, 0.5] },
+    { name: 'ANVIL', msg: 'ANVIL!', sub: 'SOMEONE DROPPED AN ANVIL ON IT', push: [0, -8, 0, 0.6] },
+    { name: 'MOON MODE', msg: 'MOON MODE!', sub: 'GRAVITY TAKES A HOLIDAY', push: [0, 4, 0, 2] },
+    { name: 'BIRD', msg: 'BIRD!', sub: 'A BIRD CLIPS THE BALL', hit: [0, 1.5, -1.5] },
+    { name: 'DOG', msg: 'DOG!', sub: 'A DOG RUNS ON AND HEADS IT', hit: [3, 1, 0] },
+    { name: 'PIGEON', msg: 'PIGEON!', sub: 'IT LANDS ON THE BALL AND STARES', hit: [0, -1, 0] },
+    { name: 'BEACH BALL', msg: 'BEACH BALL!', sub: 'A FAN TOSSES ONE ON', hit: [1, 2, 0] },
+    { name: 'DIVOT', msg: 'DIVOT!', sub: 'THE BALL HOPS OVER IT', hit: [0, 3, 0] },
+    { name: 'MASCOT TRIP', msg: 'MASCOT TRIP!', sub: 'THE MASCOT FALLS OVER', hit: [2.5, 0, -2] },
+    { name: 'STREAKER', msg: 'STREAKER!', sub: 'HE RUNS STRAIGHT THROUGH IT', hit: [2, 0, -1.5] },
+    { name: 'SLIPPERY', msg: 'SLIPPERY!', sub: 'THE GRASS IS LIKE ICE', speed: 0.85 },
+    { name: 'DEFLATED', msg: 'DEFLATED!', sub: 'THE BALL IS A BIT SOFT', speed: 0.7 },
+    { name: 'SUN GLARE', msg: 'SUN GLARE!', sub: 'THE KEEPER IS DAZZLED', react: 0.35 },
+    { name: 'WHISTLE', msg: 'WHISTLE!', sub: 'THE REF BLEW IT EARLY', react: 0.25 },
+    { name: 'CONFETTI', msg: 'CONFETTI!', sub: 'PURELY COSMETIC' },
+    { name: 'DRIP', msg: 'DRIP!', sub: 'A DRIP FROM THE ROOF - NO EFFECT' },
+    { name: 'SHIN PAD', msg: 'SHIN PAD!', sub: 'ONE FLEW OFF THE BENCH - NO EFFECT' },
+    { name: 'THE WAVE', msg: 'THE WAVE!', sub: 'THE CROWD DOES THE WAVE - NO EFFECT' },
+    { name: 'CORNER FLAG', msg: 'FLAG!', sub: 'THE CORNER FLAG FALLS OVER - NO EFFECT' },
+  ];
+
   function kick(w, shot) {
     w.st = launch(w, shot, w.ball);
     w.wob = w.st.knuckle ? [3.5 + w.rng() * 2, w.rng() * 6.283, 4 + w.rng() * 2, w.rng() * 6.283, 1 + (shot.kn || 0)] : null;
-    // chaos: one random event per shot, drawn from the world's seeded rng so replays repeat it
+    // chaos: one random event per shot, drawn from the seeded rng so replays repeat it (see CHAOS below)
     w.chaos = null;
     if (shot.chaos) {
-      const r = w.rng(), t0 = 0.3 + w.rng() * 0.8, side = w.rng() < 0.5 ? -1 : 1;
-      w.chaos = r < 0.5 ? { type: 'gust', t0, dur: 1, ax: side * (3 + w.rng() * 3) } : { type: 'bird', t0, done: false, vx: side * (1.5 + w.rng() * 1.5), vz: -(1 + w.rng()) };
+      const ev = CHAOS[Math.floor(w.rng() * CHAOS.length)], side = w.rng() < 0.5 ? -1 : 1, m = 0.7 + w.rng() * 0.6;
+      const c = { name: ev.name, msg: ev.msg, sub: ev.sub, t0: 0.3 + w.rng() * 0.8, done: false };
+      if (ev.push) Object.assign(c, { kind: 'push', ax: (ev.push[0] || 0) * side * m, ay: ev.push[1] || 0, az: ev.push[2] || 0, dur: ev.push[3], osc: ev.push[4] || 0 });
+      if (ev.hit) Object.assign(c, { kind: 'hit', vx: (ev.hit[0] || 0) * side * m, vy: ev.hit[1] || 0, vz: ev.hit[2] || 0 });
+      if (ev.speed) { w.ball.vx *= ev.speed; w.ball.vy *= ev.speed; w.ball.vz *= ev.speed; } // applied at the strike
+      if (ev.react) w.L.react += ev.react; // keeper flinches or is dazzled
+      w.chaos = c;
     }
     w.phase = 'flight'; w.ft = 0;
   }
@@ -225,8 +258,13 @@
       const px = b.x, py = b.y, pz = b.z;
       move(b, w, dt, t, w.st, w.wob, ev);
       const c = w.chaos;
-      if (c && c.type === 'gust' && t >= c.t0 && t < c.t0 + c.dur) b.vx += c.ax * dt; // gust: sideways push while it blows
-      if (c && c.type === 'bird' && !c.done && t >= c.t0 && b.y > 0.4) { c.done = true; b.vx += c.vx; b.vz += c.vz; b.vy = Math.max(b.vy, 1.5); ev.push('bird'); } // bird: clips it mid-flight
+      if (c && c.kind === 'push' && t >= c.t0 && t < c.t0 + c.dur) { // wind, lift, weight, bees: a force while it lasts
+        const o = c.osc ? Math.sin(c.osc * t) : 1;
+        b.vx += c.ax * o * dt; b.vy += c.ay * dt; b.vz += c.az * dt;
+      }
+      if (c && c.kind === 'hit' && !c.done && t >= c.t0 && (b.y > 0.4 || t > c.t0 + 0.6)) { // birds, dogs, divots: one knock
+        c.done = true; b.vx += c.vx; b.vy += c.vy; b.vz += c.vz; ev.push('chaos');
+      }
       b.rot += dt * (Math.hypot(b.sx, b.sy, b.sz) * 35 + (w.wob ? 0.4 : 0) + Math.hypot(b.vx, b.vz) * 0.05);
 
       // wall: boxes per defender in the wall's own frame
@@ -1547,7 +1585,7 @@
         savedLast = false;
       }
       Sim.kick(world, replay ? replay.rec.shot : shot); state = 'flight';
-      if (world.chaos && !replay) showMsg(world.chaos.type === 'gust' ? 'GUST!' : 'BIRD!', world.chaos.type === 'gust' ? 'WIND HITS THE BALL' : 'A BIRD CLIPS THE BALL', '#60e0ff', 1.6, 4); stateT = 0; acc = 0; sfx('kick');
+      if (world.chaos && !replay) showMsg(world.chaos.msg, world.chaos.sub, '#60e0ff', 1.6, 4); stateT = 0; acc = 0; sfx('kick');
       squash = 0.09; puff(world.ball.x, 0.05, world.ball.z, 14, GRASS_C, 1.2, 1.6);
     }
     shake = Math.max(0, shake - dt * 20);
