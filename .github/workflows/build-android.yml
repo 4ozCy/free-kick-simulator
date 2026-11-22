@@ -10,11 +10,24 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write  # to publish releases on v* tags
+    env:
+      IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Physics self-check
         run: node --test test/physics.test.js
+
+      - name: Require signing secrets for a release
+        if: env.IS_RELEASE == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          for v in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS; do
+            [ -n "${!v}" ] || { echo "::error::Repo secret $v is missing. Add KEYSTORE_BASE64, KEYSTORE_PASSWORD and KEY_ALIAS under Settings > Secrets and variables > Actions."; exit 1; }
+          done
 
       - uses: actions/setup-java@v4
         with:
@@ -26,11 +39,38 @@ jobs:
         with:
           gradle-version: '8.14.3'
 
-      - name: Build APK
+      - name: Build debug APK
+        if: env.IS_RELEASE != 'true'
         working-directory: android
         run: gradle assembleDebug --no-daemon
 
+      - name: Build signed release APK
+        if: env.IS_RELEASE == 'true'
+        working-directory: android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          RFK_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          RFK_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          export RFK_KEYSTORE="$RUNNER_TEMP/release.jks"
+          # one password for store and key; PKCS12 keystores need them equal
+          export RFK_KEY_PASSWORD="$RFK_STORE_PASSWORD"
+          # versionCode must rise with every release or Android refuses the update
+          gradle assembleRelease --no-daemon \
+            -PrfkCode="$GITHUB_RUN_NUMBER" -PrfkName="${GITHUB_REF_NAME#v}"
+          rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Verify the release APK is signed
+        if: env.IS_RELEASE == 'true'
+        run: |
+          APK=$(ls android/app/build/outputs/apk/release/*.apk)
+          "$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner" verify --print-certs "$APK"
+          cp "$APK" retro-freekick.apk
+          sha256sum retro-freekick.apk | tee retro-freekick.apk.sha256
+
       - uses: actions/upload-artifact@v4
+        if: env.IS_RELEASE != 'true'
         with:
           name: retro-freekick
           path: android/app/build/outputs/apk/debug/*.apk
@@ -38,10 +78,9 @@ jobs:
 
       # The website's download button points at releases/latest/download/retro-freekick.apk
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: env.IS_RELEASE == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk retro-freekick.apk
-          gh release create "$GITHUB_REF_NAME" retro-freekick.apk \
+          gh release create "$GITHUB_REF_NAME" retro-freekick.apk retro-freekick.apk.sha256 \
             --title "Retro Free Kick $GITHUB_REF_NAME" --generate-notes

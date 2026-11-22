@@ -7,8 +7,26 @@ android {
         applicationId 'com.retrofreekick'
         minSdk 24
         targetSdk 35
-        versionCode 1
-        versionName '1.0'
+        // CI passes these on release tags; local builds fall back to 1 / 1.0
+        versionCode Integer.parseInt(project.findProperty('rfkCode') ?: '1')
+        versionName project.findProperty('rfkName') ?: '1.0'
+    }
+    // Release signing comes from env vars set by CI, never from files in the repo
+    signingConfigs {
+        release {
+            def ks = System.getenv('RFK_KEYSTORE')
+            if (ks) {
+                storeFile file(ks)
+                storePassword System.getenv('RFK_STORE_PASSWORD')
+                keyAlias System.getenv('RFK_KEY_ALIAS')
+                keyPassword System.getenv('RFK_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            if (System.getenv('RFK_KEYSTORE')) signingConfig signingConfigs.release
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
