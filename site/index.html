@@ -105,6 +105,16 @@ ul.list li::marker { content: '\25A0  '; color: var(--red); }
 footer { margin-top: 64px; background: repeating-linear-gradient(90deg, var(--grass) 0 48px, var(--grass-2) 48px 96px); border-top: 4px solid #fff; padding: 28px 0 32px; text-align: center; }
 footer p { margin: 0 0 8px; text-shadow: 2px 2px 0 var(--ink); }
 footer a { color: #fff; }
+
+/* "are you cool with an AI-made game?" pop-up */
+dialog {
+  width: calc(100% - 32px); max-width: 460px; padding: 0; border: 0; color: var(--text); background: var(--panel);
+  box-shadow: 4px 0 0 var(--line), -4px 0 0 var(--line), 0 4px 0 var(--line), 0 -4px 0 var(--line), 12px 12px 0 var(--ink);
+}
+dialog::backdrop { background: rgba(10, 8, 24, .8); }
+dialog .in { padding: 24px 20px 8px; }
+dialog .cta { margin: 20px 4px 16px; }
+button.btn { cursor: pointer; }
 </style>
 </head>
 <body>
@@ -127,7 +137,7 @@ footer a { color: #fff; }
   <h2>BEND IT. DIP IT. KNUCKLE IT.</h2>
   <p class="big">A free-kick game for Android and your browser. 16-bit pixels, real-ish ball physics, a keeper who learns your tricks, and 33 ways for things to go stupidly wrong.</p>
   <div class="cta">
-    <a class="btn" href="https://github.com/4ozCy/free-kick-simulator/releases/latest/download/retro-freekick.apk">DOWNLOAD APK</a>
+    <a class="btn" href="https://github.com/4ozCy/free-kick-simulator/releases/latest/download/retro-freekick.apk" data-dl>DOWNLOAD APK</a>
     <a class="btn gold" href="play/">PLAY IN BROWSER</a>
   </div>
   <p class="small">Free. Android 7 or newer. No ads. Android will warn you about the APK, <a href="#install">here's why</a>. Older versions: <a href="https://github.com/4ozCy/free-kick-simulator/releases">all releases</a>.</p>
@@ -225,7 +235,7 @@ footer a { color: #fff; }
 <section id="install" aria-labelledby="install-h">
   <h2 id="install-h">INSTALLING THE APK</h2>
   <ol class="list">
-    <li>On your Android phone (7.0 or newer), tap <a href="https://github.com/4ozCy/free-kick-simulator/releases/latest/download/retro-freekick.apk">DOWNLOAD APK</a>.</li>
+    <li>On your Android phone (7.0 or newer), tap <a href="https://github.com/4ozCy/free-kick-simulator/releases/latest/download/retro-freekick.apk" data-dl>DOWNLOAD APK</a>.</li>
     <li>Open the file. If Android asks, allow your browser to install unknown apps.</li>
     <li>If Play Protect warns you, that's because of the debug signature and because it's not from the Play Store. You can install anyway (sometimes it's under "More details"), or skip all this and <a href="play/">play in the browser</a>.</li>
   </ol>
@@ -245,5 +255,31 @@ footer a { color: #fff; }
     <p><a href="https://github.com/4ozCy/free-kick-simulator">Source</a> &middot; <a href="https://github.com/4ozCy/free-kick-simulator/releases">Releases</a> &middot; <a href="https://github.com/4ozCy/free-kick-simulator/issues">Report a bug</a></p>
   </div>
 </footer>
+
+<dialog id="ai-check" aria-labelledby="ai-q">
+  <div class="in">
+    <h2 id="ai-q">QUICK QUESTION</h2>
+    <p>This game was made with AI. A human came up with the ideas and tested it, but every line of code was written by Claude Code.</p>
+    <p class="big">Are you cool with that?</p>
+    <div class="cta">
+      <a class="btn" id="ai-yes" href="https://github.com/4ozCy/free-kick-simulator/releases/latest/download/retro-freekick.apk">I'M COOL, DOWNLOAD</a>
+      <button class="btn gold" type="button" id="ai-no">NAH</button>
+    </div>
+    <p class="small"><a href="#made" id="ai-read">Wait, how was it made?</a></p>
+  </div>
+</dialog>
+<script>
+(function () {
+  var d = document.getElementById('ai-check');
+  if (!d.showModal) return; // no <dialog> support: download links just work as normal links
+  var links = document.querySelectorAll('a[data-dl]');
+  for (var i = 0; i < links.length; i++) links[i].addEventListener('click', function (e) { e.preventDefault(); d.showModal(); });
+  var close = function () { d.close(); };
+  document.getElementById('ai-no').addEventListener('click', close);
+  document.getElementById('ai-yes').addEventListener('click', close); // the link itself starts the download
+  document.getElementById('ai-read').addEventListener('click', close);
+  d.addEventListener('click', function (e) { if (e.target === d) close(); }); // tap outside the box
+})();
+</script>
 </body>
 </html>
