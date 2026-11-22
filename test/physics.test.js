@@ -184,3 +184,28 @@ test('keeper learns habits: leans to the favoured side and stops more shots ther
   }
   assert.ok(learned < base, `right-side goals: fresh keeper ${base}, learned keeper ${learned}`);
 });
+
+test('people chaos: shoelaces, cat, nap, giant keeper, dance and strike do what they say', () => {
+  const ev = (name) => Sim.CHAOS.find((e) => e.name === name);
+  const run = (L, shot, name, until) => {
+    const w = Sim.newWorld(L, 2); Sim.kick(w, shot); if (name) Sim.applyChaos(w, ev(name));
+    for (let i = 0; i < 1440 && !w.result && !(until && until(w)); i++) Sim.step(w, 1 / 240);
+    return w;
+  };
+  const atWall = { style: 0, aim: 0, power: 0.7, u: 0, v: -0.3 }; // normally hits the wall at chest height (1.2 m)
+  assert.ok(run(0, atWall).ev.wall, 'normally blocked');
+  const laces = run(0, atWall, 'SHOELACES');
+  assert.ok(!laces.ev.wall, 'goes over a wall lying on the grass');
+  assert.ok(laces.wall.every((d) => d.y === 0) && laces.keeper.state === 'down', 'nobody jumps, keeper flat out');
+  assert.ok(!run(0, atWall, 'ON STRIKE').ev.wall, 'no wall to hit');
+  // cat: he dives away from where he reads the ball going
+  const right = { style: 1, aim: 0.6, power: 0.7, u: 0, v: -0.5 }, decided = (w) => w.keeper.t0 !== undefined;
+  const calm = run(6, right, null, decided), cat = run(6, right, 'CAT', decided);
+  assert.ok(Math.sign(calm.keeper.tx - calm.keeper.px) === -Math.sign(cat.keeper.tx - cat.keeper.px), 'cat sends him the other way');
+  assert.equal(run(6, right, 'NAP').keeper.state, 'ready'); // never moved
+  const g = Sim.newWorld(6, 2); Sim.kick(g, right); Sim.applyChaos(g, ev('GIANT KEEPER')); Sim.step(g, 1 / 240);
+  assert.ok(Math.abs(g.keeper.by - 1.7 * 1.5) < 1e-9, 'giant keeper stands 1.5x tall');
+  const spread = (w) => Math.max(...w.wall.slice(1).map((d, i) => Math.hypot(d.x - w.wall[i].x, d.z - w.wall[i].z)));
+  const d0 = Sim.newWorld(6, 2), d1 = Sim.newWorld(6, 2); Sim.kick(d1, right); Sim.applyChaos(d1, ev('DANCE'));
+  assert.ok(spread(d1) > spread(d0) + 0.3, 'dancing opens gaps in the wall');
+});

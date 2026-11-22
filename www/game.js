@@ -113,22 +113,42 @@
     { name: 'SHIN PAD', msg: 'SHIN PAD!', sub: 'ONE FLEW OFF THE BENCH - NO EFFECT' },
     { name: 'THE WAVE', msg: 'THE WAVE!', sub: 'THE CROWD DOES THE WAVE - NO EFFECT' },
     { name: 'CORNER FLAG', msg: 'FLAG!', sub: 'THE CORNER FLAG FALLS OVER - NO EFFECT' },
+    // these mess with the people, not the ball (wall: trip/selfie/dance/strike, keeper: trip/scared/nap, size: keeper scale)
+    { name: 'SHOELACES', msg: 'SHOELACES!', sub: 'EVERYONE TRIPS - EXCEPT YOU', wall: 'trip', keeper: 'trip' },
+    { name: 'CAT', msg: 'CAT!', sub: 'IT SCARES THE KEEPER THE WRONG WAY', keeper: 'scared' },
+    { name: 'NAP', msg: 'NAP TIME!', sub: 'THE KEEPER DOZED OFF', keeper: 'nap' },
+    { name: 'TYING LACES', msg: 'LACES!', sub: 'THE KEEPER IS TYING HIS LACES', react: 0.4 },
+    { name: 'GIANT KEEPER', msg: 'GIANT KEEPER!', sub: 'HE ATE ALL HIS GREENS', size: 1.5 },
+    { name: 'TINY KEEPER', msg: 'TINY KEEPER!', sub: 'HE SHRANK IN THE WASH', size: 0.6 },
+    { name: 'SELFIE', msg: 'SELFIE!', sub: 'THE WALL STOPS TO POSE', wall: 'selfie' },
+    { name: 'DANCE', msg: 'DANCE BREAK!', sub: 'THE WALL BUSTS A MOVE', wall: 'dance' },
+    { name: 'ON STRIKE', msg: 'ON STRIKE!', sub: 'THE WALL WALKS OFF', wall: 'strike' },
   ];
+
+  function applyChaos(w, ev) { // at the strike: sets up the event's push/knock, or changes the wall and keeper
+    const side = w.rng() < 0.5 ? -1 : 1, m = 0.7 + w.rng() * 0.6, k = w.keeper;
+    const c = { name: ev.name, msg: ev.msg, sub: ev.sub, t0: 0.3 + w.rng() * 0.8, done: false, side, wall: ev.wall, keeper: ev.keeper };
+    if (ev.push) Object.assign(c, { kind: 'push', ax: (ev.push[0] || 0) * side * m, ay: ev.push[1] || 0, az: ev.push[2] || 0, dur: ev.push[3], osc: ev.push[4] || 0 });
+    if (ev.hit) Object.assign(c, { kind: 'hit', vx: (ev.hit[0] || 0) * side * m, vy: ev.hit[1] || 0, vz: ev.hit[2] || 0 });
+    if (ev.speed) { w.ball.vx *= ev.speed; w.ball.vy *= ev.speed; w.ball.vz *= ev.speed; }
+    if (ev.react) w.L.react += ev.react; // keeper flinches, is dazzled, or is tying his laces
+    if (ev.wall === 'trip' || ev.wall === 'selfie') for (const d of w.wall) d.jh = 0; // nobody jumps
+    if (ev.wall === 'dance') { // they shuffle apart: gaps open in the wall
+      const fx = Math.sin(w.wallYaw), fz = Math.cos(w.wallYaw), n = w.wall.length;
+      w.wall.forEach((d, i) => { const o = (i - (n - 1) / 2) * 0.6; d.x += fz * o; d.z -= fx * o; });
+    }
+    if (ev.keeper === 'trip') k.state = 'down';
+    if (ev.keeper === 'nap') w.L.react = 99;
+    if (ev.size) { k.scale = ev.size; w.L.reach *= ev.size; }
+    w.chaos = c;
+  }
 
   function kick(w, shot) {
     w.st = launch(w, shot, w.ball);
     w.wob = w.st.knuckle ? [3.5 + w.rng() * 2, w.rng() * 6.283, 4 + w.rng() * 2, w.rng() * 6.283, 1 + (shot.kn || 0)] : null;
     // chaos: one random event per shot, drawn from the seeded rng so replays repeat it (see CHAOS below)
     w.chaos = null;
-    if (shot.chaos) {
-      const ev = CHAOS[Math.floor(w.rng() * CHAOS.length)], side = w.rng() < 0.5 ? -1 : 1, m = 0.7 + w.rng() * 0.6;
-      const c = { name: ev.name, msg: ev.msg, sub: ev.sub, t0: 0.3 + w.rng() * 0.8, done: false, side };
-      if (ev.push) Object.assign(c, { kind: 'push', ax: (ev.push[0] || 0) * side * m, ay: ev.push[1] || 0, az: ev.push[2] || 0, dur: ev.push[3], osc: ev.push[4] || 0 });
-      if (ev.hit) Object.assign(c, { kind: 'hit', vx: (ev.hit[0] || 0) * side * m, vy: ev.hit[1] || 0, vz: ev.hit[2] || 0 });
-      if (ev.speed) { w.ball.vx *= ev.speed; w.ball.vy *= ev.speed; w.ball.vz *= ev.speed; } // applied at the strike
-      if (ev.react) w.L.react += ev.react; // keeper flinches or is dazzled
-      w.chaos = c;
-    }
+    if (shot.chaos) applyChaos(w, CHAOS[Math.floor(w.rng() * CHAOS.length)]);
     w.phase = 'flight'; w.ft = 0;
   }
 
@@ -200,6 +220,8 @@
     const k = w.keeper, L = w.L, b = w.ball, t = w.ft;
     k.cool -= dt;
     if (k.state === 'idle') k.state = 'ready';
+    const ks = k.scale || 1;
+    if (k.state === 'down') { k.ax = k.x - 0.9 * ks; k.bx = k.x + 0.9 * ks; k.ay = k.by = 0.15; return; } // tripped: flat on the grass
     // the wall hides the strike: he only reads the ball once it's past the wall line
     if (w.seen === undefined && (b.x - w.start.x) * Math.sin(w.yaw0) + (b.z - w.start.z) * Math.cos(w.yaw0) > WALL_D + 0.3) w.seen = t;
     if (k.state === 'ready' && t >= L.react && w.seen !== undefined && t >= w.seen + 0.12) {
@@ -208,8 +230,12 @@
       else {
         const err = (1 - L.read) * (L.habit && Math.abs(L.habit) >= 0.5 && Math.sign(p.x - k.x) === Math.sign(L.habit) ? 0.5 : 1); // he expected that side
         k.tx = clamp(p.x + (w.rng() - 0.5) * err * 1.6, k.x - L.reach, k.x + L.reach);
-        k.ty = clamp(p.y + (w.rng() - 0.5) * err * 0.6, 0.15, 2.45);
+        k.ty = clamp(p.y + (w.rng() - 0.5) * err * 0.6, 0.15, 2.45 * ks);
         k.tArr = p.t;
+        if (w.chaos && w.chaos.keeper === 'scared') { // the cat: he throws himself the other way
+          const d0 = k.tx - k.x;
+          k.tx = clamp(k.x - (Math.sign(d0) || 1) * Math.max(1.5, Math.abs(d0)), k.x - L.reach, k.x + L.reach);
+        }
         const dx = k.tx - k.x;
         k.state = Math.abs(dx) < 0.5 && k.ty < 2.0 ? 'block' : k.ty < 0.7 ? 'low' : k.ty > 1.7 ? 'high' : 'mid';
         k.px = k.x; k.t0 = t;
@@ -219,15 +245,15 @@
     }
     if (k.state === 'watch') k.x += clamp(clamp(b.x, -HW, HW) - k.x, -1.5 * dt, 1.5 * dt);
     if (k.state === 'ready' || k.state === 'watch') {
-      k.ax = k.bx = k.x; k.ay = 0.1; k.by = k.state === 'ready' ? 1.7 : 1.95;
+      k.ax = k.bx = k.x; k.ay = 0.1; k.by = (k.state === 'ready' ? 1.7 : 1.95) * ks;
       return;
     }
-    if (!k.reread && t >= k.t0 + 0.15 && !b.held) { // second look: correct part of the way if the ball is bending away from his read
+    if (!k.reread && t >= k.t0 + 0.15 && !b.held && !(w.chaos && w.chaos.keeper === 'scared')) { // second look: correct part of the way if the ball is bending away from his read
       k.reread = true;
       const p = predict(w, k.z);
       if (p && Math.abs(p.x - k.tx) > 0.4) {
         k.tx = clamp(k.tx + (p.x - k.tx) * 0.6, k.px - L.reach, k.px + L.reach);
-        k.ty = clamp(k.ty + (p.y - k.ty) * 0.6, k.state === 'block' ? 1.2 : 0.15, 2.45);
+        k.ty = clamp(k.ty + (p.y - k.ty) * 0.6, k.state === 'block' ? 1.2 : 0.15, 2.45 * ks);
       }
     }
     if (k.state !== 'block' && !b.held && t > k.tArr + 0.25) k.ty = 0.3; // ball has gone by: land on the turf
@@ -235,7 +261,7 @@
     const sp = k.state === 'block' ? 3.5 : L.kspeed;
     const ddx = k.tx - k.bx, ddy = k.ty - k.by, dd = Math.hypot(ddx, ddy), mv = Math.min(dd, sp * dt);
     if (dd > 1e-6) { k.bx += (ddx / dd) * mv; k.by += (ddy / dd) * mv; }
-    const ex = k.bx - k.px, ey = k.by, el = Math.hypot(ex, ey) || 1, len = Math.min(el, 1.9);
+    const ex = k.bx - k.px, ey = k.by, el = Math.hypot(ex, ey) || 1, len = Math.min(el, 1.9 * ks);
     k.ax = k.bx - (ex / el) * len; k.ay = Math.max(0.1, k.by - (ey / el) * len);
   }
 
@@ -269,10 +295,11 @@
 
       // wall: boxes per defender in the wall's own frame
       const fx = Math.sin(w.wallYaw), fz = Math.cos(w.wallYaw);
-      for (const d of w.wall) {
+      const wc = w.chaos && w.chaos.wall, tall = wc === 'trip' ? 0.35 : 1.86; // tripped: lying on the grass
+      for (const d of wc === 'strike' ? [] : w.wall) { // on strike: nobody there
         const rx = b.x - d.x, rz = b.z - d.z, al = rx * fx + rz * fz, la = rx * fz - rz * fx, hy = b.y - d.y;
         const half = hy > 1.6 ? 0.13 : 0.27;
-        if (Math.abs(al) < 0.15 + R && Math.abs(la) < half + R && hy > -R && hy < 1.86 + R) {
+        if (Math.abs(al) < 0.15 + R && Math.abs(la) < half + R && hy > -R && hy < tall + R) {
           const vn = b.vx * fx + b.vz * fz;
           if (vn > 0) {
             b.vx -= 1.35 * vn * fx; b.vz -= 1.35 * vn * fz; b.vx += (w.rng() - 0.5) * 3; b.vy = Math.abs(b.vy) * 0.3 + 1.5;
@@ -303,7 +330,7 @@
       // keeper: capsule from feet/hips (a) to hands (b) in his plane
       if (k.cool <= 0 && Math.abs(b.z - k.z) < 0.25 + R) {
         const c = seg(b.x, b.y, k.ax, k.ay, k.bx, k.by);
-        if (c.d < 0.22 + R) {
+        if (c.d < 0.22 * (k.scale || 1) + R) {
           const sp = Math.hypot(b.vx, b.vy, b.vz);
           k.cool = 0.5;
           if (!e.save) e.save = t;
@@ -367,7 +394,7 @@
   const rankOf = (xp) => { let r = 0; while (r + 1 < RANKS.length && xp >= RANKS[r + 1].xp) r++; return r; };
   const xpFor = (nStars, streak, dist) => 10 + 10 * nStars + 5 * Math.min(streak, 5) + Math.max(0, Math.round(dist - 18));
 
-  const Sim = { CHAOS, KN, RANKS, rankOf, xpFor, stars, multiplier, missBy, STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview, speed: speedOf };
+  const Sim = { applyChaos, CHAOS, KN, RANKS, rankOf, xpFor, stars, multiplier, missBy, STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview, speed: speedOf };
   if (typeof module !== 'undefined' && module.exports) { module.exports = Sim; return; }
 
   // =================================================================== BROWSER
@@ -761,6 +788,7 @@
     bee: [mk(3, 2, (p) => { p(0, 0, 1, 2, '#ffd020'); p(1, 0, 1, 2, '#151515'); p(2, 0, 1, 2, '#ffd020'); })],
     shin: [mk(4, 6, (p) => { p(0, 0, 4, 6, '#f2f2f2'); p(1, 1, 2, 3, '#4060c0'); })],
     flag: [mk(5, 10, (p) => { p(0, 0, 1, 10, '#ffffff'); p(1, 0, 4, 3, '#ffd020'); })],
+    cat: [mk(8, 6, (p) => { p(0, 0, 1, 3, '#202028'); p(1, 2, 5, 3, '#202028'); p(5, 0, 3, 3, '#202028'); p(5, 0, 1, 1, '#202028'); p(6, 1, 1, 1, '#f0e040'); p(1, 5, 1, 1, '#202028'); p(5, 5, 1, 1, '#202028'); })],
   };
   // a: actor sprite, h: its height in metres, path: how it moves; screen: full-view effect; snd: synth sound at the event
   const FX = {
@@ -774,6 +802,10 @@
     'SUN GLARE': { screen: 'glare', snd: 'shimmer' }, WHISTLE: { snd: 'whistle', bang: true },
     CONFETTI: { confetti: true, snd: 'pop' }, DRIP: { screen: 'drip', snd: 'plip' }, 'SHIN PAD': { a: 'shin', h: 0.3, path: 'tumble', snd: 'clatter' },
     'THE WAVE': { wave: true, snd: 'cheerlet' }, 'CORNER FLAG': { a: 'flag', h: 1.5, path: 'topple', snd: 'clatter' },
+    SHOELACES: { snd: 'trips', atKick: true }, CAT: { a: 'cat', h: 0.45, path: 'keeper', snd: 'meow', atKick: true },
+    NAP: { snd: 'snore', atKick: true, zzz: true }, 'TYING LACES': { snd: 'squeak', atKick: true },
+    'GIANT KEEPER': { snd: 'dundun', atKick: true }, 'TINY KEEPER': { snd: 'squeaky', atKick: true },
+    SELFIE: { snd: 'click', atKick: true, flash: true }, DANCE: { snd: 'dance', atKick: true }, 'ON STRIKE': { snd: 'boo', atKick: true },
   };
   let fxFired = false, fxHit = null; // event moment reached; where/when an actor hit the ball
 
@@ -944,6 +976,14 @@
     pop() { burst(0.12, 0.4, 'lowpass', 2500); [880, 1320].forEach((f, i) => tone('square', f, f, 0.08, 0.06, i * 0.06)); },
     plip() { [0, 0.4, 0.75].forEach((d) => tone('sine', 1400, 600, 0.08, 0.12, d)); },
     clatter() { [0, 0.07, 0.15].forEach((d) => burst(0.05, 0.25, 'highpass', 2000, 1, d)); },
+    trips() { [0, 0.12, 0.22, 0.3, 0.42].forEach((d) => tone('sine', 140, 50, 0.1, 0.35, d)); burst(1.4, 0.2, 'bandpass', 900, 3, 0.3, 0.1); [0.4, 0.55, 0.7, 0.85].forEach((d) => burst(0.1, 0.16, 'bandpass', 900, 3, d)); },
+    meow() { tone('sine', 700, 1200, 0.15, 0.15); tone('sine', 1200, 520, 0.25, 0.15, 0.15); burst(0.35, 0.2, 'highpass', 3000, 0.6, 0.45, 0.01); },
+    snore() { [0, 0.9].forEach((d) => { burst(0.5, 0.18, 'lowpass', 300, 1, d, 0.25); tone('sine', 90, 70, 0.5, 0.15, d); }); },
+    dundun() { tone('square', 110, 110, 0.25, 0.12); tone('square', 82, 82, 0.4, 0.12, 0.3); },
+    squeaky() { tone('square', 1600, 2400, 0.1, 0.07); tone('square', 2000, 2800, 0.1, 0.07, 0.12); },
+    click() { [0, 0.25, 0.5].forEach((d) => burst(0.03, 0.4, 'highpass', 4000, 1, d)); },
+    dance() { [523, 659, 784, 659, 523, 659, 784, 1047].forEach((f, i) => tone('square', f, f, 0.1, 0.06, i * 0.12)); },
+    boo() { burst(1.6, 0.3, 'lowpass', 400, 1, 0, 0.3); tone('sawtooth', 150, 110, 1.4, 0.04); },
     cheerlet() { burst(1.2, 0.25, 'bandpass', 1100, 0.5, 0, 0.2); },
     stars3() { [988, 1319, 1976].forEach((f, i) => tone('square', f, f, 0.14, 0.06, i * 0.25)); },
   };
@@ -1302,9 +1342,10 @@
     if (state === 'aim' || state === 'title' || k.state === 'idle' || k.state === 'ready' || k.state === 'watch') {
       const sway = state === 'aim' || state === 'title' || state === 'runup' ? Math.sin(tnow * 1.3) * 0.15 : 0;
       const bob = (Math.floor(tnow * 2.5) & 1) * 0.05;
-      const set = k.state === 'ready' || (state === 'runup' && stateT > HEROES[hero].runT - 0.25); // crouches as the kicker arrives
-      upright(set ? KEEP.set : KEEP.idle, k.x + sway, 0, k.z, set ? 1.9 : 2.12 - bob);
-    } else if (k.state === 'block') upright(KEEP.block, k.ax, 0, k.z, 2.1);
+      const nap = world.chaos && world.chaos.keeper === 'nap' && (state === 'flight' || state === 'result'), ks = k.scale || 1;
+      const set = !nap && (k.state === 'ready' || (state === 'runup' && stateT > HEROES[hero].runT - 0.25)); // crouches as the kicker arrives
+      upright(set ? KEEP.set : KEEP.idle, k.x + sway, 0, k.z, (set ? 1.9 : 2.12 - bob) * ks);
+    } else if (k.state === 'block') upright(KEEP.block, k.ax, 0, k.z, 2.1 * (k.scale || 1));
     else { // dive: stretch sprite laid along feet -> hands
       const a = proj(k.ax, k.ay, k.z), b = proj(k.bx, k.by, k.z);
       if (!a || !b) return;
@@ -1347,6 +1388,11 @@
       const q = (t - c.t0) / 1.6;
       if (q < 0 || q > 1) return null;
       return { fx, fr, rot: q * 12, pos: [wc[0] + sd * (-6 + 12 * q), 0.1 + 1.2 * Math.sin(q * Math.PI), wc[1] + 1] };
+    }
+    if (fx.path === 'keeper') { // pops up beside the keeper, hopping
+      if (t < 0.05 || t > 1.4) return null;
+      const k = world.keeper;
+      return { fx, fr, flip: sd > 0, base: true, pos: [k.x + 0.7 * sd, Math.abs(Math.sin(t * 10)) * 0.3, k.z - 0.4] };
     }
     if (fx.path === 'topple') return { fx, fr, rot: clamp((t - c.t0) / 0.5, 0, 1) * (Math.PI / 2) * sd, base: true, pos: [-sd * 6.5, 0, 0.3] }; // corner flag keels over
     return null;
@@ -1392,6 +1438,8 @@
       ctx.fillStyle = '#b0e0ff';
       for (let i = 0; i < 16; i++) { const y = ((t - c.t0) * 260 + i * 41) % 320; ctx.fillRect((i * 53 + 17) % W, Math.round(y), 2, 6); }
     }
+    if (fx.a === 'cat' && t > 0.05 && t < 1.2) { const k = world.keeper, p = proj(k.x, 2.6, k.z); if (p) text('!', p[0], p[1] - 10, 2, '#ff4040', 0.5); }
+    if (fx.zzz) { const k = world.keeper; for (let i = 0; i < 3; i++) { const q = (t * 0.7 + i / 3) % 1, p = proj(k.x + q * 0.6, 2.2 + q * 1.2, k.z); if (p) text('Z', p[0], p[1], 1 + (q > 0.5 ? 1 : 0), '#ffffff', 0.5); } }
     if (fx.bang && t >= c.t0 && t < c.t0 + 1) { const k = world.keeper, p = proj(k.x, 2.6, k.z); if (p) text('!', p[0], p[1] - 10, 2, '#ff4040', 0.5); }
     if (t < c.t0 + 2 && !replay) { // banner up in the stands, well clear of the goal
       ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 57, W, 24);
@@ -1439,6 +1487,9 @@
     upright(spr, x, lift, z, 2.05);
   }
   function wallPose(d, i) {
+    const wc = (state === 'flight' || state === 'result') && world.chaos && world.chaos.wall;
+    if (wc === 'selfie') return 'head'; // phones up
+    if (wc === 'dance' || wc === 'strike') return (Math.floor(tnow * (wc === 'dance' ? 4 : 6)) + i) & 1 ? (wc === 'dance' ? 'cheer' : 'crouch') : 'stand';
     if (state === 'result' && stateT > 0.35 + i * 0.06) return world.result === 'goal' ? 'head' : 'cheer'; // react, one by one
     if (state === 'flight' || state === 'result') {
       const t = world.ft;
@@ -1449,6 +1500,11 @@
     return 'stand';
   }
   function wallPos(d, i) { // during the first second the wall shuffles across into its line
+    if (state === 'flight' || state === 'result') {
+      const wc = world.chaos && world.chaos.wall, fz = Math.cos(world.wallYaw), fx = Math.sin(world.wallYaw);
+      if (wc === 'strike') { const off = Math.min(12, world.ft * 2.5) * (i < world.wall.length / 2 ? -1 : 1); return [d.x + fz * off, 0, d.z - fx * off]; } // walking off
+      if (wc === 'dance') return [d.x + fz * Math.sin(tnow * 8 + i) * 0.15, Math.abs(Math.sin(tnow * 8 + i)) * 0.1, d.z - fx * Math.sin(tnow * 8 + i) * 0.15];
+    }
     if (state !== 'aim' && state !== 'title') return [d.x, d.y, d.z];
     const e = Math.min(1, levelT / 1.1), q = 1 - e * e * (3 - 2 * e), fz = Math.cos(world.wallYaw), fx = Math.sin(world.wallYaw);
     const off = q * (2.4 + i * 0.4) * (world.L.ang > 0 ? 1 : -1);
@@ -1478,6 +1534,14 @@
     add((k.ax + k.bx) / 2, 1, k.z, drawKeeper);
     wp.forEach((p, i) => add(p[0], 1, p[2], () => {
       const pose = wallPose(world.wall[i], i), bob = pose === 'cheer' ? Math.abs(Math.sin(tnow * 9 + i * 1.3)) * 0.1 : 0;
+      if ((state === 'flight' || state === 'result') && world.chaos && world.chaos.wall === 'trip') { // flat on the grass
+        const q = proj(p[0], 0, p[2]);
+        if (!q) return;
+        const h = 2 * q[2], w2 = (h * DEF[i].stand.width) / DEF[i].stand.height;
+        ctx.save(); ctx.translate(Math.round(q[0]), Math.round(q[1])); ctx.rotate(clamp(world.ft / 0.25, 0, 1) * (Math.PI / 2) * (i & 1 ? 1 : -1));
+        ctx.drawImage(DEF[i].stand, Math.round(-w2 / 2), Math.round(-h), Math.round(w2), Math.round(h)); ctx.restore();
+        return;
+      }
       upright(DEF[i][pose], p[0], p[1] + bob, p[2], 2.0);
     }));
     add(b.x, b.y, b.z, drawBall);
@@ -1729,7 +1793,11 @@
       Sim.kick(world, replay ? replay.rec.shot : shot); state = 'flight';
       stateT = 0; acc = 0; sfx('kick'); fxFired = false; fxHit = null;
       const fk = world.chaos && FX[world.chaos.name];
-      if (fk && fk.atKick) { fxFired = true; sfx(fk.snd); if (fk.sparkle) puff(world.ball.x, 0.1, world.ball.z, 16, [fk.sparkle, '#ffffff'], 1.5, 1); }
+      if (fk && fk.atKick) {
+        fxFired = true; sfx(fk.snd);
+        if (fk.sparkle) puff(world.ball.x, 0.1, world.ball.z, 16, [fk.sparkle, '#ffffff'], 1.5, 1);
+        if (fk.flash) world.wall.forEach((d) => puff(d.x, 2.1, d.z, 4, ['#ffffff', '#ffffa0'], 0.6, 0.4)); // camera flashes
+      }
       squash = 0.09; puff(world.ball.x, 0.05, world.ball.z, 14, GRASS_C, 1.2, 1.6);
     }
     shake = Math.max(0, shake - dt * 20);
