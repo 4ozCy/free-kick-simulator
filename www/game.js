@@ -73,7 +73,7 @@
   }
 
   // shot: { style: 0-3, aim: -1..1, power: 0..1, u: -1..1 (strike point, right +), v: -1..1 (up +),
-  //         mega: top power 1000 km/h, insane: 4x sidespin, assist: ball homes into the net,
+  //         mega: top power 1000 km/h, insane: 4x sidespin, chaos: one random gust or bird per shot,
   //         pw / cv / tp / kn: perk bonuses to top speed / sidespin / topspin dip / knuckle wobble, e.g. 0.1 = +10% }
   const MEGA_V = 1000 / 3.6;
   const speedOf = (shot) => { const st = STYLES[shot.style]; return st.vMin + ((shot.mega ? MEGA_V : st.vMax * (1 + (shot.pw || 0))) - st.vMin) * shot.power; };
@@ -90,10 +90,11 @@
   function kick(w, shot) {
     w.st = launch(w, shot, w.ball);
     w.wob = w.st.knuckle ? [3.5 + w.rng() * 2, w.rng() * 6.283, 4 + w.rng() * 2, w.rng() * 6.283, 1 + (shot.kn || 0)] : null;
-    w.assist = null;
-    if (shot.assist) { // home on the spot in the goal nearest to where the shot was heading anyway
-      const c = preview(w, Object.assign({}, shot, { assist: false }), 80).find((q) => q[2] >= 0);
-      w.assist = { x: clamp(c ? c[0] : shot.aim * HW, -HW + 0.6, HW - 0.6), y: clamp(c ? c[1] : 1.5, 0.5, GH - 0.5), z: 0.8 };
+    // chaos: one random event per shot, drawn from the world's seeded rng so replays repeat it
+    w.chaos = null;
+    if (shot.chaos) {
+      const r = w.rng(), t0 = 0.3 + w.rng() * 0.8, side = w.rng() < 0.5 ? -1 : 1;
+      w.chaos = r < 0.5 ? { type: 'gust', t0, dur: 1, ax: side * (3 + w.rng() * 3) } : { type: 'bird', t0, done: false, vx: side * (1.5 + w.rng() * 1.5), vz: -(1 + w.rng()) };
     }
     w.phase = 'flight'; w.ft = 0;
   }
@@ -205,19 +206,6 @@
     k.ax = k.bx - (ex / el) * len; k.ay = Math.max(0.1, k.by - (ey / el) * len);
   }
 
-  // aim assist: steer the velocity toward a waypoint over the wall, then the target; turns harder as it closes in
-  function home(w, b, dt) {
-    const T = w.assist, clear = WALL_D + 0.5, lx = T.x - w.start.x, lz = T.z - w.start.z, ll = Math.hypot(lx, lz);
-    let tx = T.x, ty = T.y, tz = T.z;
-    if (((b.x - w.start.x) * lx + (b.z - w.start.z) * lz) / ll < clear - 0.3) { // progress measured along start -> target
-      const f = clear / Math.max(clear + 1, ll);
-      tx = w.start.x + lx * f; tz = w.start.z + lz * f; ty = 2.9;
-    }
-    const dx = tx - b.x, dy = ty - b.y, dz = tz - b.z, d = Math.hypot(dx, dy, dz) || 1;
-    const sp = Math.max(18, Math.hypot(b.vx, b.vy, b.vz)), k = Math.min(1, (dt * sp * 3) / Math.max(d, 1.5));
-    b.vx += ((dx / d) * sp - b.vx) * k; b.vy += ((dy / d) * sp - b.vy) * k; b.vz += ((dz / d) * sp - b.vz) * k;
-  }
-
   // substeps keep the ball moving <= 10 cm per tick, so even 1000 km/h shots can't skip through the wall or posts
   function step(w, dt) {
     const ev = [], b = w.ball;
@@ -227,7 +215,7 @@
     return ev;
   }
   function tick(w, dt, ev) {
-    const b = w.ball, k = w.keeper, e = w.ev, ghost = !!w.assist && !e.goal; // assisted ball passes through wall/keeper/frame
+    const b = w.ball, k = w.keeper, e = w.ev;
     w.ft += dt;
     const t = w.ft;
     for (const d of w.wall) { const p = (t - d.jt) / 0.55; d.y = p > 0 && p < 1 ? 4 * d.jh * p * (1 - p) : 0; }
@@ -236,12 +224,14 @@
     else {
       const px = b.x, py = b.y, pz = b.z;
       move(b, w, dt, t, w.st, w.wob, ev);
-      if (ghost) home(w, b, dt);
+      const c = w.chaos;
+      if (c && c.type === 'gust' && t >= c.t0 && t < c.t0 + c.dur) b.vx += c.ax * dt; // gust: sideways push while it blows
+      if (c && c.type === 'bird' && !c.done && t >= c.t0 && b.y > 0.4) { c.done = true; b.vx += c.vx; b.vz += c.vz; b.vy = Math.max(b.vy, 1.5); ev.push('bird'); } // bird: clips it mid-flight
       b.rot += dt * (Math.hypot(b.sx, b.sy, b.sz) * 35 + (w.wob ? 0.4 : 0) + Math.hypot(b.vx, b.vz) * 0.05);
 
       // wall: boxes per defender in the wall's own frame
       const fx = Math.sin(w.wallYaw), fz = Math.cos(w.wallYaw);
-      for (const d of ghost ? [] : w.wall) {
+      for (const d of w.wall) {
         const rx = b.x - d.x, rz = b.z - d.z, al = rx * fx + rz * fz, la = rx * fz - rz * fx, hy = b.y - d.y;
         const half = hy > 1.6 ? 0.13 : 0.27;
         if (Math.abs(al) < 0.15 + R && Math.abs(la) < half + R && hy > -R && hy < 1.86 + R) {
@@ -266,14 +256,14 @@
           ev.push('post');
         }
       };
-      for (const sx of ghost ? [] : [-HW, HW]) {
+      for (const sx of [-HW, HW]) {
         const dx = b.x - sx, d = Math.hypot(dx, b.z);
         if (d < R + PR && d > 1e-6 && b.y < GH + PR) hit(dx / d, 0, b.z / d, d);
       }
-      if (!ghost && Math.abs(b.x) < HW) { const dy = b.y - GH, d = Math.hypot(dy, b.z); if (d < R + PR && d > 1e-6) hit(0, dy / d, b.z / d, d); }
+      if (Math.abs(b.x) < HW) { const dy = b.y - GH, d = Math.hypot(dy, b.z); if (d < R + PR && d > 1e-6) hit(0, dy / d, b.z / d, d); }
 
       // keeper: capsule from feet/hips (a) to hands (b) in his plane
-      if (!ghost && k.cool <= 0 && Math.abs(b.z - k.z) < 0.25 + R) {
+      if (k.cool <= 0 && Math.abs(b.z - k.z) < 0.25 + R) {
         const c = seg(b.x, b.y, k.ax, k.ay, k.bx, k.by);
         if (c.d < 0.22 + R) {
           const sp = Math.hypot(b.vx, b.vy, b.vz);
@@ -297,15 +287,14 @@
         if (Math.abs(cx) < HW && cy < GH) {
           e.goal = { x: cx, y: cy };
           e.target = w.L.targets && TARGETS.some((q) => Math.hypot(cx - q[0], cy - q[1]) < TARGET_R);
-        } else if (!e.out && !ghost) e.out = { x: cx, y: cy };
+        } else if (!e.out) e.out = { x: cx, y: cy };
       }
 
       // nets: back, sides, roof
       const inX = Math.abs(b.x) < HW, inY = b.y < GH, inZ = b.z > 0 && b.z < ND;
-      if (ghost && inX && inY && b.z > R && b.z < ND) e.goal = { x: b.x, y: b.y }; // mega curve can swing it in from the side
       if (pz < ND && b.z >= ND && inX && inY) { b.z = ND - 0.01; b.vz *= -0.1; b.vx *= 0.4; b.vy *= 0.4; ev.push('net'); }
-      if (!ghost && inZ && inY && (Math.abs(px) < HW) !== inX) { b.x = px; b.vx *= -0.2; b.vz *= 0.6; ev.push('sidenet'); }
-      if (!ghost && inZ && inX && (py < GH) !== inY) { b.y = py; b.vy *= -0.2; b.vz *= 0.6; ev.push('sidenet'); }
+      if (inZ && inY && (Math.abs(px) < HW) !== inX) { b.x = px; b.vx *= -0.2; b.vz *= 0.6; ev.push('sidenet'); }
+      if (inZ && inX && (py < GH) !== inY) { b.y = py; b.vy *= -0.2; b.vz *= 0.6; ev.push('sidenet'); }
     }
 
     if (!w.result) {
@@ -872,9 +861,9 @@
   // ------------------------------------------------------------------ game state
   let state = 'title', world, level = 0, lives = 3, score = 0, best = 0;
   let levelT = 0, stateT = 0, tnow = 0, excite = 0, acc = 0, whistled = true, msg = null, hint = null, ptr = null;
-  const shot = { style: 1, aim: 0, power: 0.6, u: STYLES[1].u, v: STYLES[1].v, mega: false, insane: false, assist: false };
+  const shot = { style: 1, aim: 0, power: 0.6, u: STYLES[1].u, v: STYLES[1].v, mega: false, insane: false, chaos: false };
   let spot = null, seed = 1, moving = false; // player-chosen kick spot for the current level
-  const CHIPS = [['MOVE', 'move'], ['1000KM/H', 'mega'], ['MEGA CURVE', 'insane'], ['AIM ASSIST', 'assist'], ['SLOW-MO', 'slowmo']], CHIP_Y = 32, CHIP_W = 53;
+  const CHIPS = [['MOVE', 'move'], ['1000KM/H', 'mega'], ['MEGA CURVE', 'insane'], ['CHAOS', 'chaos'], ['SLOW-MO', 'slowmo']], CHIP_Y = 32, CHIP_W = 53;
   // saved progress: best score, furthest level, best stars per level, chosen ball. Anything unreadable starts fresh.
   let slowmo = false, slowSkip = false; // whole-shot slow motion (playback speed only; the outcome is identical)
   let far = 0, starsBy = {}, skin = 0, streak = 0, runCheat = false, cheatKick = false, xp = 0, runXp = 0;
@@ -920,7 +909,7 @@
   function cleanRec(r) { // stored replays are untrusted: rebuild each one from checked, clamped fields or drop it
     if (!r || typeof r !== 'object' || !r.shot || typeof r.shot !== 'object') return null;
     const s0 = r.shot, sh = { style: s0.style | 0, aim: num(s0.aim, -1, 1), power: num(s0.power, 0, 1), u: num(s0.u, -1, 1), v: num(s0.v, -1, 1),
-      mega: !!s0.mega, insane: !!s0.insane, assist: !!s0.assist, cv: num(s0.cv || 0, 0, 1), pw: num(s0.pw || 0, 0, 1), tp: num(s0.tp || 0, 0, 1), kn: num(s0.kn || 0, 0, 1) };
+      mega: !!s0.mega, insane: !!s0.insane, chaos: !!s0.chaos, cv: num(s0.cv || 0, 0, 1), pw: num(s0.pw || 0, 0, 1), tp: num(s0.tp || 0, 0, 1), kn: num(s0.kn || 0, 0, 1) };
     if (sh.style < 0 || sh.style > 3 || [sh.aim, sh.power, sh.u, sh.v, sh.cv, sh.pw, sh.tp, sh.kn].some((x) => x === null)) return null;
     const react = num(r.react, 0, 2), read = num(r.read, 0, 1), hb = num(r.habit || 0, -1, 1), n = r.n | 0;
     if (n < 0 || n > 999 || react === null || read === null || hb === null) return null;
@@ -973,7 +962,7 @@
   function doKick() {
     if (state !== 'aim') return;
     state = 'runup'; stateT = 0; ptr = null; msg = null; moving = false; trail = []; slowSkip = false;
-    cheatKick = shot.mega || shot.insane || shot.assist;
+    cheatKick = shot.mega || shot.insane; // chaos is random for or against you, so it isn't a cheat
   }
   function onResult() {
     state = 'result'; stateT = 0;
@@ -1357,7 +1346,7 @@
   function hud() {
     const L = world.L, wx = L.wind.x, wz = L.wind.z;
     const X = wx * cam.r[0] + wz * cam.r[2], Zc = wx * cam.f[0] + wz * cam.f[2], l = Math.hypot(X, Zc) || 1, dx = Math.round((X / l) * 20) / 20, dy = Math.round((-Zc / l) * 20) / 20;
-    cached(HUD_L, [L.n, L.dist, L.ang, shownScore, best, lives, dx, dy, moving, shot.mega, shot.insane, shot.assist, slowmo, streak, skin, xp].join(), 0, 56, () => drawHud(dx, dy));
+    cached(HUD_L, [L.n, L.dist, L.ang, shownScore, best, lives, dx, dy, moving, shot.mega, shot.insane, shot.chaos, slowmo, streak, skin, xp].join(), 0, 56, () => drawHud(dx, dy));
   }
   function drawHud(dx, dy) {
     CHIPS.forEach(([label, key], i) => {
@@ -1387,7 +1376,7 @@
 
   function ui() {
     const live = state === 'aim', hintOn = live && hint && hint.t < 2.2;
-    cached(UI_L, [live, live && Math.floor(tnow * 3) & 1, shot.style, shot.aim, shot.power, shot.u, shot.v, shot.mega, shot.insane, shot.assist,
+    cached(UI_L, [live, live && Math.floor(tnow * 3) & 1, shot.style, shot.aim, shot.power, shot.u, shot.v, shot.mega, shot.insane, shot.chaos,
       hintOn && hint.s, moving, level < 2 && Math.floor(tnow * 1.5) & 1].join(), UI_Y - 10, H - UI_Y + 10, drawUi);
   }
   function drawUi() {
@@ -1557,7 +1546,8 @@
         lastKick = { n: level, seed, spot: spot ? { dist: spot.dist, ang: spot.ang } : null, shot: Object.assign({}, shot), react: world.L.react, read: world.L.read, habit: world.L.habit || 0, hero, skin };
         savedLast = false;
       }
-      Sim.kick(world, replay ? replay.rec.shot : shot); state = 'flight'; stateT = 0; acc = 0; sfx('kick');
+      Sim.kick(world, replay ? replay.rec.shot : shot); state = 'flight';
+      if (world.chaos && !replay) showMsg(world.chaos.type === 'gust' ? 'GUST!' : 'BIRD!', world.chaos.type === 'gust' ? 'WIND HITS THE BALL' : 'A BIRD CLIPS THE BALL', '#60e0ff', 1.6, 4); stateT = 0; acc = 0; sfx('kick');
       squash = 0.09; puff(world.ball.x, 0.05, world.ball.z, 14, GRASS_C, 1.2, 1.6);
     }
     shake = Math.max(0, shake - dt * 20);

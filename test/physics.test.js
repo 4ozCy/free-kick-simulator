@@ -59,17 +59,21 @@ test('mega curve bends several times harder', () => {
   assert.ok(endX({ ...s, insane: true }) < endX(s) * 3);
 });
 
-test('aim assist scores from anywhere, whatever the strike', () => {
-  for (const spot of [undefined, { dist: 17, ang: 0 }, { dist: 40, ang: -50 }, { dist: 30, ang: 55 }])
-    for (const style of [0, 1, 2, 3]) for (const aim of [-1, 0, 1]) for (const v of [-0.9, 0.9])
-      for (const mega of [false, true]) for (const insane of [false, true]) {
-        const w = Sim.newWorld(5, 3, spot);
-        Sim.kick(w, { style, aim, power: 1, u: 0.9, v, mega, insane, assist: true });
-        for (let i = 0; i < 240 * 6 && !w.result; i++) Sim.step(w, 1 / 240);
-        assert.equal(w.result, 'goal', JSON.stringify({ spot, style, aim, v, mega, insane }));
-      }
+test('chaos: each shot gets a random gust or bird, the same seed repeats it, and the ball still ends somewhere', () => {
+  const run = (seed) => { const w = Sim.newWorld(4, seed); Sim.kick(w, { style: 1, aim: 0, power: 0.7, u: 0.3, v: -0.3, chaos: true }); for (let i = 0; i < 1440 && !w.result; i++) Sim.step(w, 1 / 240); return w; };
+  const types = new Set();
+  for (let s = 1; s <= 30; s++) { const w = run(s); types.add(w.chaos.type); assert.ok(w.result, 'shot ended'); }
+  assert.deepEqual([...types].sort(), ['bird', 'gust']);
+  assert.equal(run(9).ball.x, run(9).ball.x);
 });
-
+test('chaos: a gust blows the ball sideways compared with the same shot with no chaos', () => {
+  const plain = Sim.newWorld(0, 3), gust = Sim.newWorld(0, 3);
+  Sim.kick(plain, { style: 0, aim: 0, power: 0.6, u: 0, v: -0.3 });
+  Sim.kick(gust, { style: 0, aim: 0, power: 0.6, u: 0, v: -0.3, chaos: true });
+  gust.chaos = { type: 'gust', t0: 0.2, dur: 1, ax: 6 }; // force a strong gust for the comparison
+  for (let i = 0; i < 480; i++) { Sim.step(plain, 1 / 240); Sim.step(gust, 1 / 240); }
+  assert.ok(gust.ball.x > plain.ball.x + 0.3, `gust moved it ${(gust.ball.x - plain.ball.x).toFixed(2)} m`);
+});
 test('a chosen spot moves the ball', () => {
   const w = Sim.newWorld(0, 1, { dist: 35, ang: 30 });
   assert.ok(Math.abs(Math.hypot(w.ball.x, w.ball.z) - 35) < 1e-9 && w.ball.x > 0);
