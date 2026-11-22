@@ -23,13 +23,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Assemble site (page + playable game + images)
+      - name: Assemble site (page + playable game)
         run: |
           mkdir _site
           cp -r site/. _site/
           cp -r www _site/play
-          mkdir _site/img
-          cp itch/screenshots/*.png itch/banner.png itch/cover.png itch/bg-tile.png _site/img/
 
       - uses: actions/upload-pages-artifact@v3
         with:

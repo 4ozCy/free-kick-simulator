@@ -2,4 +2,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://4ozcy.github.io/free-kick-simulator/sitemap.xml
+Sitemap: https://4ozcy.github.io/retro-free-kick/sitemap.xml

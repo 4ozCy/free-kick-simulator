@@ -6,12 +6,12 @@
 <title>Retro Free Kick: a pixel free-kick game for Android and the browser</title>
 <meta name="description" content="A free 16-bit style free-kick game for Android and the browser. Bend it, dip it, knuckle it. Made by one human and an AI, and honest about it.">
 <meta name="robots" content="index,follow">
-<link rel="canonical" href="https://4ozcy.github.io/free-kick-simulator/">
+<link rel="canonical" href="https://4ozcy.github.io/retro-free-kick/">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Retro Free Kick">
 <meta property="og:description" content="A free pixel free-kick game. Real-ish ball physics, a keeper who learns, 33 chaos events. Made by one human and an AI.">
-<meta property="og:url" content="https://4ozcy.github.io/free-kick-simulator/">
-<meta property="og:image" content="https://4ozcy.github.io/free-kick-simulator/img/cover.png">
+<meta property="og:url" content="https://4ozcy.github.io/retro-free-kick/">
+<meta property="og:image" content="https://4ozcy.github.io/retro-free-kick/img/cover.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#0e1030">
 <link rel="icon" href="favicon.png">
@@ -81,6 +81,7 @@ section { padding: 56px 0 8px; }
 /* grids */
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
 .grid p { margin: 0; color: var(--dim); }
+.box p:last-child { margin-bottom: 0; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin: 24px 0; }
 .stats .box { text-align: center; padding: 16px 8px; }
 .stats b { display: block; font: 20px/1.4 var(--head); color: var(--gold); }
@@ -125,9 +126,10 @@ button.btn { cursor: pointer; }
   <nav aria-label="Sections">
     <a href="play/">PLAY</a>
     <a href="#download">DOWNLOAD</a>
+    <a href="#about">ABOUT</a>
     <a href="#made">HOW IT WAS MADE</a>
     <a href="#bad">WHAT'S BAD</a>
-    <a href="https://github.com/4ozCy/free-kick-simulator">SOURCE</a>
+    <a href="https://github.com/4ozCy/retro-free-kick">SOURCE</a>
   </nav>
 </header>
 
@@ -137,10 +139,10 @@ button.btn { cursor: pointer; }
   <h2>BEND IT. DIP IT. KNUCKLE IT.</h2>
   <p class="big">A free-kick game for Android and your browser. 16-bit pixels, real-ish ball physics, a keeper who learns your tricks, and 33 ways for things to go stupidly wrong.</p>
   <div class="cta">
-    <a class="btn" href="https://github.com/4ozCy/free-kick-simulator/releases/latest/download/retro-freekick.apk" data-dl>DOWNLOAD APK</a>
+    <a class="btn" href="https://github.com/4ozCy/retro-free-kick/releases/latest/download/retro-freekick.apk" data-dl>DOWNLOAD APK</a>
     <a class="btn gold" href="play/">PLAY IN BROWSER</a>
   </div>
-  <p class="small">Free. Android 7 or newer. No ads. Android will warn you about the APK, <a href="#install">here's why</a>. Older versions: <a href="https://github.com/4ozCy/free-kick-simulator/releases">all releases</a>.</p>
+  <p class="small">Free. Android 7 or newer. No ads. Android will warn you about the APK, <a href="#install">here's why</a>. Older versions: <a href="https://github.com/4ozCy/retro-free-kick/releases">all releases</a>.</p>
 </section>
 
 <div class="shots" role="region" aria-label="Screenshots" tabindex="0">
@@ -160,6 +162,15 @@ button.btn { cursor: pointer; }
     <div class="box"><h3>18 MADE-UP LEGENDS</h3><p>Each has a preferred foot, stance, run-up and perk. The names are made up on purpose. More on that below.</p></div>
     <div class="box"><h3>REPLAYS + SLOW-MO</h3><p>Save your best goals and rewatch them, or play a whole shot in slow motion.</p></div>
     <div class="box"><h3>BEGINNER TO LEGEND</h3><p>Seven ranks with a perk each, plus stars, streaks and balls to unlock.</p></div>
+  </div>
+</section>
+
+<section id="about" aria-labelledby="about-h">
+  <h2 id="about-h">ABOUT THE GAME</h2>
+  <div class="box">
+    <p>Retro Free Kick is a hobby project, not a studio product. There's no roadmap and no release schedule. I update the game whenever I get a new idea, so things get added, changed, and usually get weirder.</p>
+    <p>Every update goes on the <a href="https://github.com/4ozCy/retro-free-kick/releases">releases page</a>, and the DOWNLOAD button always gets the newest one. The browser version is always up to date.</p>
+    <p>Got an idea? <a href="https://github.com/4ozCy/retro-free-kick/issues">Tell me</a>. It might end up in the game.</p>
   </div>
 </section>
 
@@ -227,7 +238,7 @@ button.btn { cursor: pointer; }
       <li>It's been tested on my phone and in an automated browser. That's it. Your phone might disagree.</li>
       <li>No iPhone app. The browser version might work on an iPhone. Nobody has checked.</li>
       <li>Your progress lives on your device. Clear the app data or your browser storage and it's gone. No accounts, no cloud saves.</li>
-      <li>It's three days old, so there are bugs nobody has found yet. <a href="https://github.com/4ozCy/free-kick-simulator/issues">Tell me about them.</a></li>
+      <li>It's three days old, so there are bugs nobody has found yet. <a href="https://github.com/4ozCy/retro-free-kick/issues">Tell me about them.</a></li>
     </ul>
   </div>
 </section>
@@ -235,7 +246,7 @@ button.btn { cursor: pointer; }
 <section id="install" aria-labelledby="install-h">
   <h2 id="install-h">INSTALLING THE APK</h2>
   <ol class="list">
-    <li>On your Android phone (7.0 or newer), tap <a href="https://github.com/4ozCy/free-kick-simulator/releases/latest/download/retro-freekick.apk" data-dl>DOWNLOAD APK</a>.</li>
+    <li>On your Android phone (7.0 or newer), tap <a href="https://github.com/4ozCy/retro-free-kick/releases/latest/download/retro-freekick.apk" data-dl>DOWNLOAD APK</a>.</li>
     <li>Open the file. If Android asks, allow your browser to install unknown apps.</li>
     <li>If Play Protect warns you, that's because of the debug signature and because it's not from the Play Store. You can install anyway (sometimes it's under "More details"), or skip all this and <a href="play/">play in the browser</a>.</li>
   </ol>
@@ -252,7 +263,7 @@ button.btn { cursor: pointer; }
 <footer>
   <div class="wrap">
     <p>Made by 4ozCy (the ideas) and Claude Code (the code).</p>
-    <p><a href="https://github.com/4ozCy/free-kick-simulator">Source</a> &middot; <a href="https://github.com/4ozCy/free-kick-simulator/releases">Releases</a> &middot; <a href="https://github.com/4ozCy/free-kick-simulator/issues">Report a bug</a></p>
+    <p><a href="https://github.com/4ozCy/retro-free-kick">Source</a> &middot; <a href="https://github.com/4ozCy/retro-free-kick/releases">Releases</a> &middot; <a href="https://github.com/4ozCy/retro-free-kick/issues">Report a bug</a></p>
   </div>
 </footer>
 
@@ -262,7 +273,7 @@ button.btn { cursor: pointer; }
     <p>This game was made with AI. A human came up with the ideas and tested it, but every line of code was written by Claude Code.</p>
     <p class="big">Are you cool with that?</p>
     <div class="cta">
-      <a class="btn" id="ai-yes" href="https://github.com/4ozCy/free-kick-simulator/releases/latest/download/retro-freekick.apk">I'M COOL, DOWNLOAD</a>
+      <a class="btn" id="ai-yes" href="https://github.com/4ozCy/retro-free-kick/releases/latest/download/retro-freekick.apk">I'M COOL, DOWNLOAD</a>
       <button class="btn gold" type="button" id="ai-no">NAH</button>
     </div>
     <p class="small"><a href="#made" id="ai-read">Wait, how was it made?</a></p>
