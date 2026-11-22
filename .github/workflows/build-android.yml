@@ -27,6 +27,15 @@ jobs:
         working-directory: android
         run: gradle assembleDebug --no-daemon
 
+      - name: Package the HTML5 build for itch.io
+        run: cd www && zip -r ../retro-freekick-web.zip index.html game.js
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retro-freekick-web
+          path: retro-freekick-web.zip
+          if-no-files-found: error
+
       - uses: actions/upload-artifact@v4
         with:
           name: retro-freekick
