@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  workflow_dispatch:   # Actions tab > Run workflow: publishes a release without pushing a tag
+    inputs:
+      version:
+        description: Release version, for example 1.0.0
+        required: true
 
 jobs:
   build:
@@ -11,9 +16,17 @@ jobs:
     permissions:
       contents: write  # to publish releases on v* tags
     env:
-      IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+      IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Work out the version
+        if: env.IS_RELEASE == 'true'
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          V="${INPUT_VERSION:-$GITHUB_REF_NAME}"
+          echo "VERSION=${V#v}" >> "$GITHUB_ENV"
 
       - name: Physics self-check
         run: node --test test/physics.test.js
@@ -58,7 +71,7 @@ jobs:
           export RFK_KEY_PASSWORD="$RFK_STORE_PASSWORD"
           # versionCode must rise with every release or Android refuses the update
           gradle assembleRelease --no-daemon \
-            -PrfkCode="$GITHUB_RUN_NUMBER" -PrfkName="${GITHUB_REF_NAME#v}"
+            -PrfkCode="$GITHUB_RUN_NUMBER" -PrfkName="$VERSION"
           rm -f "$RUNNER_TEMP/release.jks"
 
       - name: Verify the release APK is signed
@@ -82,5 +95,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" retro-freekick.apk retro-freekick.apk.sha256 \
-            --title "Retro Free Kick $GITHUB_REF_NAME" --generate-notes
+          # creates the tag too when it doesn't exist yet (manual runs)
+          gh release create "v$VERSION" retro-freekick.apk retro-freekick.apk.sha256 \
+            --target "$GITHUB_SHA" --title "Retro Free Kick v$VERSION" --generate-notes
