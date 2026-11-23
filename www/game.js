@@ -4,9 +4,11 @@
   // =================================================================== SIMULATION
   // World metres: x = right, y = up, z = toward the goal. Goal line is z = 0, goal centre x = 0.
   const DEG = Math.PI / 180;
-  const G = 9.81, R = 0.11, HW = 3.66, GH = 2.44, ND = 2.0, PR = 0.06;
+  const G = 9.81, R = 0.11, ND = 2.0, PR = 0.06;
+  let HW = 3.66, GH = 2.44; // goal half-width and height; chaos can scale them for one shot (setGoal)
   const DRAG = 0.012, MAGNUS = 0.36, WALL_D = 9.15;
   const TARGETS = [[-HW + 0.6, GH - 0.55], [HW - 0.6, GH - 0.55]], TARGET_R = 0.5;
+  function setGoal(k) { HW = 3.66 * k; GH = 2.44 * k; TARGETS[0] = [-HW + 0.6 * k, GH - 0.55 * k]; TARGETS[1] = [HW - 0.6 * k, GH - 0.55 * k]; }
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const smooth = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
   function mulberry32(a) {
@@ -48,6 +50,7 @@
   }
 
   function newWorld(n, seed, spot) { // spot: optional overrides, e.g. { dist, ang } chosen by the player, { habit } learned by the keeper
+    setGoal(1); // a goal grown or shrunk by the last shot's chaos goes back to normal
     const L = Object.assign(makeLevel(n), spot), rng = mulberry32(seed | 0), a = L.ang * DEG;
     const ball = { x: L.dist * Math.sin(a), y: R, z: -L.dist * Math.cos(a), vx: 0, vy: 0, vz: 0, sx: 0, sy: 0, sz: 0, rot: 0, held: false };
     const yaw0 = Math.atan2(-ball.x, -ball.z);
@@ -123,6 +126,12 @@
     { name: 'SELFIE', msg: 'SELFIE!', sub: 'THE WALL STOPS TO POSE', wall: 'selfie' },
     { name: 'DANCE', msg: 'DANCE BREAK!', sub: 'THE WALL BUSTS A MOVE', wall: 'dance' },
     { name: 'ON STRIKE', msg: 'ON STRIKE!', sub: 'THE WALL WALKS OFF', wall: 'strike' },
+    // these change the goal or what the taker does (goal: frame scale; act: the taker juggles, dribbles or chips instead)
+    { name: 'BIG GOAL', msg: 'BIG GOAL!', sub: 'THE GOAL GREW', goal: 1.5 },
+    { name: 'TINY GOAL', msg: 'TINY GOAL!', sub: 'THE GOAL SHRANK', goal: 0.6 },
+    { name: 'JUGGLE', msg: 'KEEPY-UPPY!', sub: 'HE SHOWS OFF BEFORE HE SHOOTS', act: 'juggle' },
+    { name: 'DRIBBLE', msg: 'DRIBBLE!', sub: 'HE TAKES ON EVERYONE', act: 'dribble' },
+    { name: 'CHEEKY CHIP', msg: 'CHEEKY CHIP!', sub: 'A SOFT ONE DOWN THE MIDDLE', act: 'chip', keeper: 'scared' },
   ];
 
   function applyChaos(w, ev) { // at the strike: sets up the event's push/knock, or changes the wall and keeper
@@ -140,7 +149,59 @@
     if (ev.keeper === 'trip') k.state = 'down';
     if (ev.keeper === 'nap') w.L.react = 99;
     if (ev.size) { k.scale = ev.size; w.L.reach *= ev.size; }
+    if (ev.goal) setGoal(ev.goal);
+    const b = w.ball;
+    if (ev.act === 'juggle') { c.jug = { dur: 1.6, n: 0, x: b.x, z: b.z, v: [b.vx, b.vy, b.vz] }; b.vx = b.vy = b.vz = 0; }
+    if (ev.act === 'dribble') { // ball at his feet: round the wall on one side, past the keeper, into the net
+      const fx = Math.sin(w.wallYaw), fz = Math.cos(w.wallYaw), n = w.wall.length;
+      const cx = w.wall.reduce((a, d) => a + d.x, 0) / n, cz = w.wall.reduce((a, d) => a + d.z, 0) / n, out = (n * 0.62) / 2 + 1.3;
+      const gx = clamp(k.x + side * 1.8, -HW + 0.6, HW - 0.6);
+      c.drib = { pts: [[b.x, b.z], [cx + fz * side * out, cz - fx * side * out], [gx, -2.5], [gx, ND - 0.4]], seg: 0, s: 0, kx: b.x, kz: b.z, done: false, tap: 0 };
+      b.vx = b.vy = b.vz = b.sx = b.sy = b.sz = 0; w.wob = null; w.L.react = 99; // keeper is frozen by the skills
+    }
+    if (ev.act === 'chip') { // a soft lob at the middle of the goal: find the loft that drops it in at 1.2 m
+      const yaw = Math.atan2(-b.x, -b.z), hs = 14;
+      let best = null;
+      for (let vy = 4; vy <= 16; vy += 0.25) {
+        const q = { x: b.x, y: b.y, z: b.z, vx: Math.sin(yaw) * hs, vy, vz: Math.cos(yaw) * hs, sx: 0, sy: 0, sz: 0 };
+        for (let i = 0; i < 2400 && q.z < 0; i++) move(q, w, 1 / 240, i / 240, null, null, null);
+        const e = Math.abs(q.y - 1.2);
+        if (q.z >= 0 && (!best || e < best.e)) best = { e, vy };
+      }
+      Object.assign(b, { vx: Math.sin(yaw) * hs, vy: best ? best.vy : 8, vz: Math.cos(yaw) * hs, sx: 0, sy: 0, sz: 0 });
+      w.wob = null; w.st = Object.assign({}, w.st, { late: false, knuckle: false });
+    }
     w.chaos = c;
+  }
+
+  function scripted(w, dt, t, ev) { // the taker's own tricks; returns true while he still has the ball
+    const c = w.chaos, b = w.ball;
+    if (c.jug && !c.jug.done) { // keepy-uppies on the spot, then a volley with the shot he lined up
+      const j = c.jug, u = t / j.dur, hop = Math.abs(Math.sin(Math.PI * 5 * u));
+      if (u < 1) {
+        b.x = j.x; b.z = j.z; b.y = R + 0.75 * hop; b.rot += dt * 6;
+        if (Math.floor(u * 5) !== j.n) { j.n = Math.floor(u * 5); ev.push('touch'); }
+        return true;
+      }
+      j.done = true; w.tOff = t; b.y = 0.5; b.vx = j.v[0]; b.vy = j.v[1]; b.vz = j.v[2]; ev.push('volley');
+      return false;
+    }
+    if (c.drib && !c.drib.done) { // runs the ball round everyone at 7 m/s, little touches, walks it in
+      const d = c.drib, k = w.keeper;
+      let a = d.pts[d.seg], q = d.pts[d.seg + 1], len = Math.hypot(q[0] - a[0], q[1] - a[1]);
+      d.s += 7 * dt;
+      while (d.s > len && d.seg < d.pts.length - 2) { d.s -= len; d.seg++; a = d.pts[d.seg]; q = d.pts[d.seg + 1]; len = Math.hypot(q[0] - a[0], q[1] - a[1]); }
+      const f = Math.min(1, d.s / len), ux = (q[0] - a[0]) / len, uz = (q[1] - a[1]) / len, pz = b.z;
+      b.x = a[0] + (q[0] - a[0]) * f; b.z = a[1] + (q[1] - a[1]) * f; b.y = R + 0.05 * Math.abs(Math.sin(t * 14));
+      b.vx = ux * 7; b.vy = 0; b.vz = uz * 7; b.rot += dt * 20;
+      d.kx = b.x - ux * 0.55; d.kz = b.z - uz * 0.55; // he runs right behind it
+      if (t - d.tap > 0.3) { d.tap = t; ev.push('touch'); }
+      if (b.z > -4 && k.state !== 'down') { k.state = 'down'; ev.push('dummy'); } // sold a dummy: keeper on his backside
+      if (pz < 0 && b.z >= 0 && !w.ev.goal) w.ev.goal = { x: b.x, y: b.y };
+      if (f >= 1 && d.seg === d.pts.length - 2) { d.done = true; b.vx = b.vy = b.vz = 0; ev.push('net'); }
+      return true;
+    }
+    return false;
   }
 
   function kick(w, shot) {
@@ -148,7 +209,7 @@
     w.wob = w.st.knuckle ? [3.5 + w.rng() * 2, w.rng() * 6.283, 4 + w.rng() * 2, w.rng() * 6.283, 1 + (shot.kn || 0)] : null;
     // chaos: one random event per shot, drawn from the seeded rng so replays repeat it (see CHAOS below)
     w.chaos = null;
-    if (shot.chaos) applyChaos(w, CHAOS[Math.floor(w.rng() * CHAOS.length)]);
+    if (shot.chaos) { const r = w.rng(); applyChaos(w, CHAOS.find((e) => e.name === shot.chaosName) || CHAOS[Math.floor(r * CHAOS.length)]); }
     w.phase = 'flight'; w.ft = 0;
   }
 
@@ -279,10 +340,13 @@
     const t = w.ft;
     for (const d of w.wall) { const p = (t - d.jt) / 0.55; d.y = p > 0 && p < 1 ? 4 * d.jh * p * (1 - p) : 0; }
     updateKeeper(w, dt);
-    if (b.held) { b.x = k.bx; b.y = Math.max(R, k.by); b.z = k.z + 0.15; b.vx = b.vy = b.vz = 0; }
+    const tk = t - (w.tOff || 0); // time since the ball actually left his foot (a juggle delays it)
+    if (w.chaos && scripted(w, dt, t, ev)) { /* he still has the ball */ }
+    else if (w.chaos && w.chaos.drib) { /* walked in: nothing more to simulate */ }
+    else if (b.held) { b.x = k.bx; b.y = Math.max(R, k.by); b.z = k.z + 0.15; b.vx = b.vy = b.vz = 0; }
     else {
       const px = b.x, py = b.y, pz = b.z;
-      move(b, w, dt, t, w.st, w.wob, ev);
+      move(b, w, dt, tk, w.st, w.wob, ev);
       const c = w.chaos;
       if (c && c.kind === 'push' && t >= c.t0 && t < c.t0 + c.dur) { // wind, lift, weight, bees: a force while it lasts
         const o = c.osc ? Math.sin(c.osc * t) : 1;
@@ -370,7 +434,7 @@
       else if (e.save && t - e.save > 0.8 && b.vz < 3) w.result = 'save';
       else if (e.wall && t - e.wall > 0.9 && b.vz < 2) w.result = 'wall';
       else if (e.post && t - e.post > 1.0 && b.vz < 1) w.result = 'post';
-      else if (t > 4 || (sp < 0.5 && b.y < R + 0.01)) w.result = why();
+      else if (!(w.chaos && (w.chaos.drib || (w.chaos.jug && !w.chaos.jug.done))) && (tk > 4 || (sp < 0.5 && b.y < R + 0.01))) w.result = why();
       if (w.result) ev.push('result');
     }
   }
@@ -394,7 +458,7 @@
   const rankOf = (xp) => { let r = 0; while (r + 1 < RANKS.length && xp >= RANKS[r + 1].xp) r++; return r; };
   const xpFor = (nStars, streak, dist) => 10 + 10 * nStars + 5 * Math.min(streak, 5) + Math.max(0, Math.round(dist - 18));
 
-  const Sim = { applyChaos, CHAOS, KN, RANKS, rankOf, xpFor, stars, multiplier, missBy, STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview, speed: speedOf };
+  const Sim = { applyChaos, CHAOS, setGoal, goal: () => [HW, GH], KN, RANKS, rankOf, xpFor, stars, multiplier, missBy, STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview, speed: speedOf };
   if (typeof module !== 'undefined' && module.exports) { module.exports = Sim; return; }
 
   // =================================================================== BROWSER
@@ -806,6 +870,8 @@
     NAP: { snd: 'snore', atKick: true, zzz: true }, 'TYING LACES': { snd: 'squeak', atKick: true },
     'GIANT KEEPER': { snd: 'dundun', atKick: true }, 'TINY KEEPER': { snd: 'squeaky', atKick: true },
     SELFIE: { snd: 'click', atKick: true, flash: true }, DANCE: { snd: 'dance', atKick: true }, 'ON STRIKE': { snd: 'boo', atKick: true },
+    'BIG GOAL': { snd: 'grow', atKick: true, sparkle: '#ffe040' }, 'TINY GOAL': { snd: 'shrink', atKick: true, sparkle: '#80e0ff' },
+    JUGGLE: { snd: 'cheerlet', atKick: true }, DRIBBLE: { snd: 'ole', atKick: true }, 'CHEEKY CHIP': { snd: 'ooh', atKick: true },
   };
   let fxFired = false, fxHit = null; // event moment reached; where/when an actor hit the ball
 
@@ -985,6 +1051,10 @@
     dance() { [523, 659, 784, 659, 523, 659, 784, 1047].forEach((f, i) => tone('square', f, f, 0.1, 0.06, i * 0.12)); },
     boo() { burst(1.6, 0.3, 'lowpass', 400, 1, 0, 0.3); tone('sawtooth', 150, 110, 1.4, 0.04); },
     cheerlet() { burst(1.2, 0.25, 'bandpass', 1100, 0.5, 0, 0.2); },
+    grow() { tone('square', 160, 640, 0.5, 0.08); tone('triangle', 320, 1280, 0.5, 0.05, 0.05); },
+    shrink() { tone('square', 900, 220, 0.45, 0.07); tone('triangle', 1800, 440, 0.45, 0.04, 0.05); },
+    ole() { [0, 0.55].forEach((d) => { burst(0.25, 0.25, 'bandpass', 700, 2, d, 0.05); burst(0.45, 0.22, 'bandpass', 1000, 2, d + 0.22, 0.05); }); },
+    tap() { tone('sine', 260, 110, 0.06, 0.25); },
     stars3() { [988, 1319, 1976].forEach((f, i) => tone('square', f, f, 0.14, 0.06, i * 0.25)); },
   };
   const sfx = (n) => { if (AC) SFX[n](); };
@@ -1041,7 +1111,7 @@
   function cleanRec(r) { // stored replays are untrusted: rebuild each one from checked, clamped fields or drop it
     if (!r || typeof r !== 'object' || !r.shot || typeof r.shot !== 'object') return null;
     const s0 = r.shot, sh = { style: s0.style | 0, aim: num(s0.aim, -1, 1), power: num(s0.power, 0, 1), u: num(s0.u, -1, 1), v: num(s0.v, -1, 1),
-      mega: !!s0.mega, insane: !!s0.insane, chaos: !!s0.chaos, cv: num(s0.cv || 0, 0, 1), pw: num(s0.pw || 0, 0, 1), tp: num(s0.tp || 0, 0, 1), kn: num(s0.kn || 0, 0, 1) };
+      mega: !!s0.mega, insane: !!s0.insane, chaos: !!s0.chaos, chaosName: CHAOS.some((e) => e.name === s0.chaosName) ? s0.chaosName : undefined, cv: num(s0.cv || 0, 0, 1), pw: num(s0.pw || 0, 0, 1), tp: num(s0.tp || 0, 0, 1), kn: num(s0.kn || 0, 0, 1) };
     if (sh.style < 0 || sh.style > 3 || [sh.aim, sh.power, sh.u, sh.v, sh.cv, sh.pw, sh.tp, sh.kn].some((x) => x === null)) return null;
     const react = num(r.react, 0, 2), read = num(r.read, 0, 1), hb = num(r.habit || 0, -1, 1), n = r.n | 0;
     if (n < 0 || n > 999 || react === null || read === null || hb === null) return null;
@@ -1152,6 +1222,9 @@
       else if (e === 'chaos') { fxHit = { x: b.x, y: b.y, z: b.z, t: world.ft }; sfx('thud'); squash = 0.09; puff(b.x, b.y, b.z, 10, FX[world.chaos.name] && FX[world.chaos.name].dirt ? DUST : ['#ffffff', '#ffe060'], 1.8, 1.4); }
       else if (e === 'net') { sfx('net'); netHit(b.x, b.y, 9); shake = Math.max(shake, 2); puff(b.x, b.y, b.z, 8, ['#ffffff', '#d8d8e8'], 1.2, 0.5); }
       else if (e === 'sidenet') sfx('net');
+      else if (e === 'touch') sfx('tap');
+      else if (e === 'volley') { sfx('kick'); squash = 0.09; puff(b.x, b.y, b.z, 8, ['#ffffff', '#ffe060'], 1.2, 1); }
+      else if (e === 'dummy') { sfx('oof'); puff(world.keeper.x, 0.05, world.keeper.z, 10, DUST, 1, 1); }
       else if (e === 'result') onResult();
     }
   }
@@ -1471,7 +1544,11 @@
     const h = HEROES[hero], s = world.start, fx = Math.sin(world.yaw0), fz = Math.cos(world.yaw0);
     let back = h.back, side = h.side;
     if (state === 'runup') { const e = Math.min(1, stateT / h.runT); back += (0.3 - back) * e; side += (0.32 - side) * e; }
-    else if (state === 'flight' || state === 'result') { back = 0.3; side = 0.32; }
+    else if (state === 'flight' || state === 'result') {
+      const d = world.chaos && world.chaos.drib;
+      if (d) return [d.kx, d.kz]; // dribbling: right behind the ball
+      back = 0.3; side = 0.32;
+    }
     if (h.foot === 'L') side = -side;
     return [s.x - fx * back - fz * side, s.z - fz * back + fx * side];
   }
@@ -1480,9 +1557,12 @@
     if (!p || p[3] < 2.2) return; // the dollying camera passes him: don't blow him up across the screen
     const h = HEROES[hero], run = state === 'runup', after = state === 'flight' || state === 'result';
     // run-up: 4-frame stride cycle, then the wind-up; contact, follow-through, then standing; breathing while he waits
-    const spr = run ? (h.runT - stateT < 0.12 ? HS.plant : [HS.run, HS.pass, HS.run2, HS.pass][Math.floor(stateT / (h.stepT / 2)) & 3])
-      : state === 'flight' && stateT < 0.12 ? HS.kick : state === 'flight' && stateT < 0.5 ? HS.follow : after ? HS.stand : HS.stance;
-    const lift = run ? Math.abs(Math.sin((stateT * Math.PI) / h.stepT)) * 0.06 : !after && Math.sin(tnow * 2.4) > 0.5 ? 0.012 : 0;
+    const c = after && world.chaos, dr = c && c.drib && !c.drib.done, jg = c && c.jug, ts = jg && jg.done ? world.ft - world.tOff : stateT;
+    const cycle = (t) => [HS.run, HS.pass, HS.run2, HS.pass][Math.floor(t / (h.stepT / 2)) & 3];
+    const spr = run ? (h.runT - stateT < 0.12 ? HS.plant : cycle(stateT)) : dr ? cycle(world.ft)
+      : jg && !jg.done ? (world.ball.y < R + 0.15 ? HS.kick : HS.stand) // a touch every time the ball comes down
+      : state === 'flight' && ts < 0.12 ? HS.kick : state === 'flight' && ts < 0.5 ? HS.follow : after ? HS.stand : HS.stance;
+    const lift = run || dr ? Math.abs(Math.sin(((dr ? world.ft : stateT) * Math.PI) / h.stepT)) * 0.06 : !after && Math.sin(tnow * 2.4) > 0.5 ? 0.012 : 0;
     shadow(x, z, 0.35, 0.3);
     upright(spr, x, lift, z, 2.05);
   }
@@ -1791,6 +1871,7 @@
         savedLast = false;
       }
       Sim.kick(world, replay ? replay.rec.shot : shot); state = 'flight';
+      if (!replay && lastKick && world.chaos) lastKick.shot.chaosName = world.chaos.name;
       stateT = 0; acc = 0; sfx('kick'); fxFired = false; fxHit = null;
       const fk = world.chaos && FX[world.chaos.name];
       if (fk && fk.atKick) {

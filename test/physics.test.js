@@ -209,3 +209,28 @@ test('people chaos: shoelaces, cat, nap, giant keeper, dance and strike do what 
   const d0 = Sim.newWorld(6, 2), d1 = Sim.newWorld(6, 2); Sim.kick(d1, right); Sim.applyChaos(d1, ev('DANCE'));
   assert.ok(spread(d1) > spread(d0) + 0.3, 'dancing opens gaps in the wall');
 });
+
+test('goal and taker chaos: big/tiny goal, juggle, dribble and cheeky chip do what they say', () => {
+  const ev = (name) => Sim.CHAOS.find((e) => e.name === name);
+  const at = (name, x) => { // a ball rolled at the goal line at x, 1 m up, with the keeper frozen in the middle
+    const w = Sim.newWorld(0, 2); Sim.kick(w, { style: 0, aim: 0, power: 0.5, u: 0, v: 0 });
+    if (name) Sim.applyChaos(w, ev(name));
+    w.L.react = 99; Object.assign(w.ball, { x, y: 1, z: -1, vx: 0, vy: 0, vz: 12, sx: 0, sy: 0, sz: 0 }); w.wob = null;
+    for (let i = 0; i < 960 && !w.result; i++) Sim.step(w, 1 / 240);
+    return w.result;
+  };
+  assert.notEqual(at(null, 4.5), 'goal'); assert.equal(at('BIG GOAL', 4.5), 'goal');
+  assert.equal(at(null, 2.8), 'goal'); assert.notEqual(at('TINY GOAL', 2.8), 'goal');
+  Sim.newWorld(0, 1); assert.deepEqual(Sim.goal(), [3.66, 2.44], 'the next shot gets a normal goal back');
+
+  const run = (L, s, name) => { const w = Sim.newWorld(L, s); Sim.kick(w, { style: 1, aim: 0.1, power: 0.7, u: 0.3, v: -0.3, chaos: true, chaosName: name }); const log = []; for (let i = 0; i < 240 * 8 && !w.result; i++) { Sim.step(w, 1 / 240); log.push([w.ft, Math.hypot(w.ball.x - w.start.x, w.ball.z - w.start.z)]); } return { w, log }; };
+  const j = run(4, 3, 'JUGGLE');
+  assert.ok(j.log.filter(([t]) => t < 1.55).every(([, d]) => d < 0.01), 'keeps it on the spot while juggling');
+  assert.ok(j.w.tOff >= 1.6 && j.w.result, 'then volleys it and the shot resolves');
+  for (let L = 0; L < 12; L++) for (let s = 1; s <= 5; s++) {
+    assert.equal(run(L, s, 'DRIBBLE').w.result, 'goal', 'dribbles it in on level ' + L);
+    assert.equal(run(L, s, 'CHEEKY CHIP').w.result, 'goal', 'chips it in on level ' + L);
+  }
+  const d = run(5, 1, 'DRIBBLE').w;
+  assert.ok(d.keeper.state === 'down' && !d.ev.wall && !d.ev.save, 'round the wall, keeper sold a dummy');
+});
