@@ -110,6 +110,7 @@ test('streak multiplier climbs to x5; near-miss gap is measured from the frame',
 });
 
 test('skill ladder: XP thresholds map to ranks; goals earn more XP for stars, streaks and distance', () => {
+  assert.equal(Sim.xpFor(2, 1, 25, true), 10 * Sim.xpFor(2, 1, 25), 'CHAOS mode pays 10x XP');
   assert.deepEqual([0, 79, 80, 450, 1999, 2000, 99999].map(Sim.rankOf), [0, 0, 1, 3, 5, 6, 6]);
   assert.ok(Sim.xpFor(3, 0, 18) > Sim.xpFor(1, 0, 18));
   assert.ok(Sim.xpFor(1, 4, 18) > Sim.xpFor(1, 0, 18));
