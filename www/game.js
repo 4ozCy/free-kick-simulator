@@ -456,7 +456,7 @@
     { name: 'LEGEND', xp: 2000, perk: 'FULL GUIDE: SEE THE WHOLE FLIGHT' },
   ];
   const rankOf = (xp) => { let r = 0; while (r + 1 < RANKS.length && xp >= RANKS[r + 1].xp) r++; return r; };
-  const xpFor = (nStars, streak, dist) => 10 + 10 * nStars + 5 * Math.min(streak, 5) + Math.max(0, Math.round(dist - 18));
+  const xpFor = (nStars, streak, dist, chaos) => (10 + 10 * nStars + 5 * Math.min(streak, 5) + Math.max(0, Math.round(dist - 18))) * (chaos ? 10 : 1); // CHAOS mode pays 10x
 
   const Sim = { applyChaos, CHAOS, setGoal, goal: () => [HW, GH], KN, RANKS, rankOf, xpFor, stars, multiplier, missBy, STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview, speed: speedOf };
   if (typeof module !== 'undefined' && module.exports) { module.exports = Sim; return; }
@@ -1182,7 +1182,7 @@
         return showMsg('GOAL!', how + '+' + base, '#ffe040', 2.6, 5, -1, 'CHEATS ON - NO STARS');
       }
       const m = Sim.multiplier(streak), pts = base * m, n = Sim.stars(world, lives === maxLives()), before = totalStars();
-      const gain = Sim.xpFor(n, streak, world.L.dist), r0 = rank();
+      const gain = Sim.xpFor(n, streak, world.L.dist, !!world.chaos), r0 = rank();
       score += pts; streak++; xp += gain; runXp += gain; lastKick.pts = pts;
       const up = rank() > r0 ? Sim.RANKS[rank()] : null;
       if (up) { applyPerks(); setTimeout(() => sfx('stars3'), 1200); }
@@ -1192,7 +1192,7 @@
       persist();
       setTimeout(() => sfx('stars' + n), 350);
       showMsg('GOAL!', how + '+' + pts + (m > 1 ? ' (X' + m + ')' : '') + '  +' + gain + 'XP', '#ffe040', up ? 3.4 : 2.8, 5, n,
-        up ? 'RANK UP: ' + up.name + '! ' + up.perk : fresh ? 'NEW BALL UNLOCKED: ' + fresh.name : streak >= 3 ? 'ON FIRE! ' + streak + ' IN A ROW' : '');
+        up ? 'RANK UP: ' + up.name + '! ' + up.perk : world.chaos ? 'CHAOS BONUS: 10X XP!' : fresh ? 'NEW BALL UNLOCKED: ' + fresh.name : streak >= 3 ? 'ON FIRE! ' + streak + ' IN A ROW' : '');
     } else {
       sfx('ooh');
       const left = lives - 1, gap = Sim.missBy(world), lost = streak >= 2 ? 'STREAK OF ' + streak + ' LOST' : '';
