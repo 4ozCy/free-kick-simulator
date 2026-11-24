@@ -1132,13 +1132,13 @@
     apito: (c, o, t, len) => { const v = c.createOscillator(), l = c.createOscillator(), lg = c.createGain(), g = c.createGain(); v.type = 'square'; v.frequency.value = 2650; l.frequency.value = 32; lg.gain.value = 160; l.connect(lg).connect(v.frequency); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.035, t + 0.01); g.gain.setValueAtTime(0.035, t + len - 0.02); g.gain.linearRampToValueAtTime(0, t + len); v.connect(g).connect(o); v.start(t); l.start(t); v.stop(t + len + 0.02); l.stop(t + len + 0.02); },
     cuica: (c, o, t, f0, f1, len) => osc(c, o, 'sine', f0, t, len, 0.12, f1),
   };
-  function themeStep(c, o, gs, t) { // one 16th of the samba theme
+  function themeStep(c, o, gs, t, drumsOnly) { // one 16th of the samba theme (drumsOnly: just the batucada, for intros)
     const S = THEME, bar = Math.floor(gs / 16) % S.lead.length, st = gs % 16, d16 = 60 / S.bpm / 4, half = st < 8 ? 0 : 1;
-    for (const [at, m, len] of S.lead[bar]) if (at === st) { osc(c, o, 'square', HZ(m), t, len * d16 * 0.95, 0.045); osc(c, o, 'triangle', HZ(m + 12), t, len * d16 * 0.6, 0.012); }
+    if (!drumsOnly) for (const [at, m, len] of S.lead[bar]) if (at === st) { osc(c, o, 'square', HZ(m), t, len * d16 * 0.95, 0.045); osc(c, o, 'triangle', HZ(m + 12), t, len * d16 * 0.6, 0.012); }
     const ch = S.chords[bar][Math.min(half, S.chords[bar].length - 1)], bs = S.bass[bar][Math.min(half, S.bass[bar].length - 1)];
-    if (STRUM.indexOf(st) >= 0) ch.forEach((m, i) => osc(c, o, 'square', HZ(m + 12), t + i * 0.006, d16 * 0.7, 0.012)); // cavaquinho strum, offbeat
-    if (st === 0 || st === 6 || st === 14) osc(c, o, 'triangle', HZ(bs), t, d16 * (st === 0 ? 3 : 1.6), 0.16);
-    if (st === 8) osc(c, o, 'triangle', HZ(bs + 7), t, d16 * 3, 0.14);
+    if (!drumsOnly && STRUM.indexOf(st) >= 0) ch.forEach((m, i) => osc(c, o, 'square', HZ(m + 12), t + i * 0.006, d16 * 0.7, 0.012)); // cavaquinho strum, offbeat
+    if (!drumsOnly && (st === 0 || st === 6 || st === 14)) osc(c, o, 'triangle', HZ(bs), t, d16 * (st === 0 ? 3 : 1.6), 0.16);
+    if (!drumsOnly && st === 8) osc(c, o, 'triangle', HZ(bs + 7), t, d16 * 3, 0.14);
     if (st % 4 === 0) DRUM.surdo(c, o, t, st === 4 || st === 12);
     DRUM.caixa(c, o, t, st % 4 === 3); DRUM.ganza(c, o, t + d16 * 0.5);
     if (TAMB.indexOf(st) >= 0) DRUM.tamborim(c, o, t);
@@ -1148,9 +1148,39 @@
     if (bar === 7 && st === 14) DRUM.apito(c, o, t, d16 * 0.8);
   }
 
-  // jersey club remix of the theme: 140 BPM, the bouncing 5-kick bar, claps on 2 and 4, snare rolls into the drop,
-  // bed-squeak chirps and chopped vocal stabs (formant-filtered saw, so still no samples), with agogo and whistle for Brazil
-  const JC = { bpm: 140, kick: [0, 4, 8, 10, 12], fill: [0, 3, 6, 8, 10, 12, 14], chop: { 2: 'hey', 7: 'ah', 11: 'oh', 14: 'hey' } };
+  // jersey club: 140-145 BPM, the bouncing 5-kick bar, claps on 2 and 4, snare rolls into the drop, bed-squeak chirps
+  // and chopped vocal stabs (formant-filtered saws, so still no samples), with agogo, cuica and whistle for the Brazil link.
+  // Sections: build (held chords), roll (build + snare roll), drop, fill (drop with the faster kick bounce), break, outro.
+  const chordsOf = (list) => list.map((c) => c.split('|').map((h) => h.split(' ').map(MIDI)));
+  const rootsOf = (list) => list.map((b) => b.split('|').map(MIDI));
+  const JTRACKS = [
+    { name: 'BRAZIL BOUNCE', bpm: 140, chords: THEME.chords, bass: THEME.bass, lead: THEME.lead, chop: { 2: 'hey', 7: 'ah', 11: 'oh', 14: 'hey' }, extra: 'agogo' },
+    { name: 'COPACABANA NIGHTS', bpm: 140, chop: { 2: 'oh', 6: 'ah', 10: 'oh', 14: 'hey' }, extra: 'cuica',
+      chords: chordsOf(['A3 C4 E4', 'F3 A3 C4', 'C4 E4 G4', 'G3 B3 D4', 'A3 C4 E4', 'F3 A3 C4', 'D3 F3 A3|E3 G#3 B3', 'A3 C4 E4']),
+      bass: rootsOf(['A2', 'F2', 'C2', 'G2', 'A2', 'F2', 'D2|E2', 'A2']),
+      lead: ['E5:0:2 C5:2:1 E5:3:2 A5:6:1 G5:7:2 E5:9:1 D5:10:2 C5:12:2 A4:14:2', 'C5:0:2 A4:2:1 C5:3:2 F5:6:2 E5:8:1 C5:9:2 A4:11:3',
+        'G5:0:2 E5:2:1 G5:3:2 C6:6:2 B5:8:1 G5:9:2 E5:11:3', 'D5:0:2 B4:2:1 D5:3:2 G5:6:2 F5:8:1 D5:9:2 B4:11:3',
+        'E5:0:1 E5:1:1 A5:3:2 C6:6:2 B5:8:1 A5:9:2 E5:11:3', 'F5:0:2 E5:2:1 C5:3:2 A4:6:2 C5:8:2 F5:10:2 E5:12:4',
+        'D5:0:2 F5:2:1 A5:3:2 F5:6:2 E5:8:2 G#5:10:2 B5:12:2 E5:14:2', 'A5:0:3 E5:3:1 C5:4:2 A4:6:2'].map(notes) },
+    { name: 'TOP BINS', bpm: 142, chop: { 2: 'hey', 6: 'hey', 11: 'ah', 14: 'hey' }, extra: 'squeaks',
+      chords: chordsOf(['D4 F#4 A4', 'A3 C#4 E4', 'B3 D4 F#4', 'G3 B3 D4', 'D4 F#4 A4', 'A3 C#4 E4', 'G3 B3 D4|A3 C#4 E4', 'D4 F#4 A4']),
+      bass: rootsOf(['D2', 'A2', 'B2', 'G2', 'D2', 'A2', 'G2|A2', 'D2']),
+      lead: ['F#5:0:1 A5:1:1 D6:2:2 A5:4:1 F#5:5:1 D5:6:2 E5:8:1 F#5:9:1 A5:10:2 F#5:12:2 E5:14:2',
+        'C#5:0:1 E5:1:1 A5:2:2 E5:4:1 C#5:5:1 A4:6:2 B4:8:1 C#5:9:1 E5:10:2 A5:12:4',
+        'B4:0:1 D5:1:1 F#5:2:2 D5:4:1 B4:5:1 F#4:6:2 A4:8:2 B4:10:2 D5:12:4',
+        'G4:0:1 B4:1:1 D5:2:2 G5:4:2 F#5:6:1 E5:7:1 D5:8:2 B4:10:2 A4:12:4',
+        'F#5:0:1 A5:1:1 D6:2:2 A5:4:1 F#5:5:1 D5:6:2 E5:8:1 F#5:9:1 A5:10:2 F#5:12:2 E5:14:2',
+        'C#5:0:1 E5:1:1 A5:2:2 C#6:4:2 B5:6:1 A5:7:1 E5:8:2 C#5:10:2 A4:12:4',
+        'B4:0:2 D5:2:2 G5:4:2 D5:6:2 C#5:8:2 E5:10:2 A5:12:4', 'D6:0:3 A5:3:1 F#5:4:2 D5:6:2'].map(notes) },
+    { name: 'LAST MINUTE WINNER', bpm: 145, chop: { 3: 'oh', 7: 'hey', 11: 'oh', 15: 'hey' }, extra: 'agogo', long: true,
+      chords: chordsOf(['E3 G3 B3', 'C4 E4 G4', 'G3 B3 D4', 'D4 F#4 A4', 'E3 G3 B3', 'C4 E4 G4', 'A3 C4 E4|B3 D#4 F#4', 'E3 G3 B3']),
+      bass: rootsOf(['E2', 'C2', 'G2', 'D2', 'E2', 'C2', 'A2|B2', 'E2']),
+      lead: ['B5:0:3 G5:3:1 E5:4:2 B4:6:2 E5:8:2 G5:10:2 F#5:12:2 E5:14:2', 'E5:0:3 C5:3:1 G4:4:2 C5:6:2 E5:8:2 G5:10:2 E5:12:4',
+        'D5:0:3 B4:3:1 G4:4:2 B4:6:2 D5:8:2 G5:10:2 B5:12:4', 'A5:0:3 F#5:3:1 D5:4:2 A4:6:2 D5:8:2 F#5:10:2 A5:12:2 F#5:14:2',
+        'E6:0:3 B5:3:1 G5:4:2 E5:6:2 G5:8:2 B5:10:2 A5:12:2 G5:14:2', 'G5:0:3 E5:3:1 C5:4:2 E5:6:2 G5:8:2 C6:10:2 B5:12:4',
+        'A5:0:2 C6:2:2 E6:4:2 C6:6:2 B5:8:2 D#6:10:2 F#6:12:2 B5:14:2', 'E6:0:3 B5:3:1 G5:4:2 E5:6:2'].map(notes) },
+  ];
+  const JC = { kick: [0, 4, 8, 10, 12], fill: [0, 3, 6, 8, 10, 12, 14] };
   const VOWEL = { hey: [530, 1840], ah: [730, 1090], oh: [570, 840] };
   function chop(c, o, t, m, v, vol) { // a 'hey' / 'ah' / 'oh' stab: buzzy source through two vowel formants
     const src = c.createOscillator(), g = c.createGain(); src.type = 'sawtooth'; src.frequency.value = HZ(m);
@@ -1158,22 +1188,31 @@
     VOWEL[v].forEach((f) => { const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 6; src.connect(bp).connect(g); });
     g.connect(o); src.start(t); src.stop(t + 0.15);
   }
-  function jerseyStep(c, o, gs, t) {
-    const S = THEME, J = JC, bar = Math.floor(gs / 16) % 8, st = gs % 16, d16 = 60 / J.bpm / 4, half = st < 8 ? 0 : 1;
-    const build = bar < 2, ch = S.chords[bar][Math.min(half, S.chords[bar].length - 1)], bs = S.bass[bar][Math.min(half, S.bass[bar].length - 1)];
-    if (!build) { // the drop: kick bounce + 808 sub, chords pumping under the kick
-      const kicks = bar === 7 || bar === 3 ? J.fill : J.kick;
-      if (kicks.indexOf(st) >= 0) { osc(c, o, 'sine', 160, t, 0.16, 0.55, 45); osc(c, o, 'triangle', HZ(bs - 12), t, st === 0 || st === 8 ? d16 * 3 : d16 * 1.5, 0.22); }
+  const loopSection = (bar) => (bar % 8 === 0 ? 'build' : bar % 8 === 1 ? 'roll' : bar % 4 === 3 ? 'fill' : 'drop'); // the in-game 8-bar loop
+  function jerseyStep(c, o, T, gs, t, sec) {
+    const bar = Math.floor(gs / 16) % 8, st = gs % 16, d16 = 60 / T.bpm / 4, half = st < 8 ? 0 : 1;
+    sec = sec || loopSection(Math.floor(gs / 16));
+    const ch = T.chords[bar][Math.min(half, T.chords[bar].length - 1)], bs = T.bass[bar][Math.min(half, T.bass[bar].length - 1)];
+    const hot = sec === 'drop' || sec === 'fill' || sec === 'outro', calm = sec === 'build' || sec === 'roll' || sec === 'break';
+    if (hot) { // kick bounce + 808 sub
+      if ((sec === 'fill' ? JC.fill : JC.kick).indexOf(st) >= 0) { osc(c, o, 'sine', 160, t, 0.16, 0.55, 45); osc(c, o, 'triangle', HZ(bs - 12), t, st === 0 || st === 8 ? d16 * 3 : d16 * 1.5, 0.22); }
+    }
+    if (sec === 'drop' || sec === 'fill') {
       if (st % 4 === 2) ch.forEach((m) => osc(c, o, 'sawtooth', HZ(m), t, d16 * 1.6, 0.012)); // pumped stabs between the kicks
-      for (const [at, m, len] of S.lead[bar]) if (at === st) osc(c, o, 'square', HZ(m + 12), t, Math.min(len, 2) * d16 * 0.55, 0.03); // the theme, chopped short
-    } else if (st % 8 === 0) ch.forEach((m) => osc(c, o, 'triangle', HZ(m + 12), t, d16 * 7, 0.025)); // build: held chords
-    if (st === 4 || st === 12) { [0, 0.008, 0.017].forEach((k) => hiss(c, o, t + k, 0.09, 0.12, 'bandpass', 1500, 1.4)); } // clap
-    if (st % 2 === 0) hiss(c, o, t, 0.025, 0.035, 'highpass', 8000); // hats
-    if (bar === 1 && st >= 8) hiss(c, o, t, 0.05, 0.025 + (st - 8) * 0.012, 'bandpass', 1900, 1.5); // snare roll into the drop
-    if (st in J.chop && (!build || st === 7)) chop(c, o, t, ch[0] + 12, J.chop[st], build ? 0.05 : 0.08);
-    if (!build && (st === 6 || st === 15) && bar % 2 === 1) osc(c, o, 'sine', 1900, t, 0.07, 0.05, 2500); // bed squeak
-    if (!build && (st === 3 || st === 11) && bar % 2 === 0) DRUM.agogo(c, o, t, st === 3);
-    if (bar === 2 && st === 0) DRUM.apito(c, o, t, d16 * 2.5); // whistle on the drop
+      for (const [at, m, len] of T.lead[bar]) if (at === st) osc(c, o, 'square', HZ(m + 12), t, (T.long ? len : Math.min(len, 2)) * d16 * (T.long ? 0.9 : 0.55), T.long ? 0.026 : 0.03);
+      if (st in T.chop) chop(c, o, t, ch[0] + 12, T.chop[st], 0.08);
+      if ((st === 6 || st === 15) && (bar % 2 === 1 || T.extra === 'squeaks')) osc(c, o, 'sine', 1900, t, 0.07, 0.05, 2500); // bed squeak
+      if (T.extra === 'agogo' && (st === 3 || st === 11) && bar % 2 === 0) DRUM.agogo(c, o, t, st === 3);
+      if (T.extra === 'cuica' && st === 14 && bar % 2 === 1) DRUM.cuica(c, o, t, 380, 760, 0.22);
+    }
+    if (calm) {
+      if (st % 8 === 0) ch.forEach((m) => osc(c, o, 'triangle', HZ(m + 12), t, d16 * 7, 0.025)); // held chords
+      if (st === 7) chop(c, o, t, ch[0] + 12, 'ah', 0.05);
+      if (sec === 'break') for (const [at, m, len] of T.lead[bar]) if (at === st) osc(c, o, 'triangle', HZ(m + 12), t, len * d16, 0.04); // the hook, soft
+    }
+    if (sec !== 'break' && (st === 4 || st === 12)) [0, 0.008, 0.017].forEach((k) => hiss(c, o, t + k, 0.09, 0.12, 'bandpass', 1500, 1.4)); // clap
+    if (st % 2 === 0 && (sec !== 'break' || st % 4 === 0)) hiss(c, o, t, 0.025, 0.035, 'highpass', 8000); // hats
+    if (sec === 'roll' && st >= 8) hiss(c, o, t, 0.05, 0.025 + (st - 8) * 0.012, 'bandpass', 1900, 1.5); // snare roll into the drop
   }
   function fanfare(c, o, t) { // GOAL: a carnival burst
     const d = 0.085;
@@ -1187,7 +1226,7 @@
     ['E5', 'D5', 'B4', 'G4'].forEach((n, i) => osc(c, o, 'triangle', HZ(MIDI(n)), t + i * 0.22, 0.3, 0.07));
     DRUM.cuica(c, o, t + 0.95, 620, 330, 0.7); DRUM.cuica(c, o, t + 1.7, 520, 260, 0.9); DRUM.surdo(c, o, t + 0.9, true);
   }
-  let musBus = null, mus = { on: false, step: 0, next: 0 };
+  let musBus = null, mus = { on: false, step: 0, next: 0, track: (Math.random() * 4) | 0 };
   function musicTick() { // keeps ~0.2 s of the theme scheduled ahead while a menu is up
     if (!AC || !musBus || AC.state !== 'running') return;
     const want = music < 2 && !replay && (/^(title|daily|heroes|replays|pause)$/.test(state) || (state === 'over' && stateT > 2.2));
@@ -1195,8 +1234,13 @@
     if (!want) { mus.on = false; return; }
     if (!mus.on) { mus.on = true; mus.step = 0; mus.next = AC.currentTime + 0.12; }
     if (mus.next < AC.currentTime - 0.1) mus.next = AC.currentTime + 0.05; // after a stall: resume, don't machine-gun the backlog
-    const jc = music === 1, d16 = 60 / (jc ? JC.bpm : THEME.bpm) / 4;
-    while (mus.next < AC.currentTime + 0.2) { (jc ? jerseyStep : themeStep)(AC, musBus, mus.step, mus.next); mus.next += d16; mus.step++; }
+    const jc = music === 1, T = JTRACKS[mus.track % JTRACKS.length], d16 = 60 / (jc ? T.bpm : THEME.bpm) / 4;
+    while (mus.next < AC.currentTime + 0.2) {
+      if (jc) { jerseyStep(AC, musBus, T, mus.step, mus.next); if (mus.step % 128 === 32) DRUM.apito(AC, musBus, mus.next, d16 * 2.5); } // whistle on the drop
+      else themeStep(AC, musBus, mus.step, mus.next);
+      mus.next += d16; mus.step++;
+      if (jc && mus.step >= 128 * 2) { mus.step = 0; mus.track++; return; } // the playlist: two loops of each track, then the next
+    }
   }
   const jingle = (fn) => { if (AC && music < 2 && AC.state === 'running') fn(AC, master, AC.currentTime + 0.02); };
 
@@ -1211,7 +1255,7 @@
   const CHIPS = [['MOVE', 'move'], ['1000KM/H', 'mega'], ['MEGA CURVE', 'insane'], ['CHAOS', 'chaos'], ['SLOW-MO', 'slowmo']], CHIP_Y = 32, CHIP_W = 53;
   // saved progress: best score, furthest level, best stars per level, chosen ball. Anything unreadable starts fresh.
   let slowmo = false, slowSkip = false; // whole-shot slow motion (playback speed only; the outcome is identical)
-  let sound = 0, vibe = true, music = 0; // music: 0 SAMBA, 1 JERSEY CLUB, 2 OFF
+  let sound = 0, vibe = true, music = 1; // music: 0 SAMBA, 1 JERSEY CLUB (a playlist), 2 OFF
   const MUSIC_NAME = ['SAMBA', 'JERSEY CLUB', 'OFF']; // sound: 0 ON, 1 LOW, 2 OFF; vibe: haptics on Android
   const VOL = [1, 0.35, 0], SOUND_NAME = ['ON', 'LOW', 'OFF'];
   const setVolume = () => { if (master) master.gain.value = 0.6 * VOL[sound]; };
@@ -1229,7 +1273,7 @@
   try {
     const d = JSON.parse(localStorage.getItem('rfk-save') || 'null');
     if (d && typeof d === 'object') {
-      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); xp = Math.max(0, d.xp | 0); hero = clamp(d.hero | 0, 0, HEROES.length - 1); slowmo = d.slowmo === true; sound = clamp(d.sound === undefined ? 0 : d.sound | 0, 0, 2); vibe = d.vibe !== false; music = d.music === false ? 2 : clamp(typeof d.music === 'number' ? d.music | 0 : 0, 0, 2); skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
+      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); xp = Math.max(0, d.xp | 0); hero = clamp(d.hero | 0, 0, HEROES.length - 1); slowmo = d.slowmo === true; sound = clamp(d.sound === undefined ? 0 : d.sound | 0, 0, 2); vibe = d.vibe !== false; music = d.music === false ? 2 : clamp(typeof d.music === 'number' ? d.music | 0 : 1, 0, 2); skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
       if (d.stars && typeof d.stars === 'object') for (const k in d.stars) starsBy[k] = clamp(d.stars[k] | 0, 0, 3);
     } else best = +localStorage.getItem('rfk-best') || 0; // pre-progression saves kept only the best score
   } catch (_) {}
@@ -2240,5 +2284,5 @@
     else return state !== 'title'; // mid-shot: ignore
     return true;
   };
-  window.__rfk = { Sim, get world() { return world; }, get state() { return state; }, get replay() { return replay; }, get lastKick() { return lastKick; }, get daily() { return daily; }, preview: { themeStep, jerseyStep, fanfare, sting, THEME, JC }, get dailyRec() { return dailyRec; }, shot }; // handle for automated checks
+  window.__rfk = { Sim, get world() { return world; }, get state() { return state; }, get replay() { return replay; }, get lastKick() { return lastKick; }, get daily() { return daily; }, preview: { themeStep, jerseyStep, fanfare, sting, THEME, JTRACKS, DRUM }, get dailyRec() { return dailyRec; }, shot }; // handle for automated checks
 })();
