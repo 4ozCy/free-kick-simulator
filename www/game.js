@@ -1089,15 +1089,16 @@
       parts.push({ x, y, z, vx: Math.cos(a) * v, vy: up * (0.5 + Math.random()), vz: Math.sin(a) * v, life: 0.3 + Math.random() * 0.3, c: cols[i % cols.length] });
     }
   }
+  let voice = true; // ZOOMER FM talks out loud (toggle in the pause menu)
   const GRASS_C = ['#58b858', '#3d9b3d', '#e6eee6'], DUST = ['#8a7a50', '#5a9a4a', '#b0a070'], SPARK = ['#ffffff', '#ffe060', '#ffb030'];
   try {
     const d = JSON.parse(localStorage.getItem('rfk-save') || 'null');
     if (d && typeof d === 'object') {
-      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); xp = Math.max(0, d.xp | 0); hero = clamp(d.hero | 0, 0, HEROES.length - 1); slowmo = d.slowmo === true; skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
+      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); xp = Math.max(0, d.xp | 0); hero = clamp(d.hero | 0, 0, HEROES.length - 1); slowmo = d.slowmo === true; voice = d.voice !== false; skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
       if (d.stars && typeof d.stars === 'object') for (const k in d.stars) starsBy[k] = clamp(d.stars[k] | 0, 0, 3);
     } else best = +localStorage.getItem('rfk-best') || 0; // pre-progression saves kept only the best score
   } catch (_) {}
-  const persist = () => { try { localStorage.setItem('rfk-save', JSON.stringify({ best, far, stars: starsBy, skin, xp, hero, slowmo })); } catch (_) {} };
+  const persist = () => { try { localStorage.setItem('rfk-save', JSON.stringify({ best, far, stars: starsBy, skin, xp, hero, slowmo, voice })); } catch (_) {} };
   const totalStars = () => Object.keys(starsBy).reduce((a, k) => a + starsBy[k], 0);
   const unlocked = (i) => totalStars() >= BALL_SKINS[i].need;
   if (!unlocked(skin)) skin = 0;
@@ -1193,12 +1194,32 @@
     close: ['INCHES. CRUEL, PAINFUL, CHARACTER BUILDING INCHES', 'SO CLOSE I FELT IT IN MY SOUL', 'NEARLY. NEARLY DOES NOT GO IN THE GROUP CHAT THO',
       'THE NET FELT THE BREEZE AND GOT JEALOUS'],
   };
-  const BAGS = {};
-  let talk = null; // { s: the line, t: seconds since the result }
+  const BAGS = {}, HYPE = ['goal', 'topbins', 'postin', 'knuckle', 'trivela', 'streak', 'chaos', 'cheat'];
+  let talk = null; // { s: the line, t: seconds since the result, hype: a goal (excited voice) or a miss (deadpan) }
   function say(key) { // the next line for this moment, never the same one twice running
     BAGS[key] = BAGS[key] || Sim.bag(BANTER[key]);
-    talk = { s: BAGS[key]().replace('{HERO}', HEROES[hero].name).replace('{DIST}', Math.round(world.L.dist)), t: 0 };
+    talk = { s: BAGS[key]().replace('{HERO}', HEROES[hero].name).replace('{DIST}', Math.round(world.L.dist)), t: 0, hype: HYPE.indexOf(key) >= 0 };
   }
+  // the voice: the phone's own text-to-speech (Android app: native bridge; browsers: Web Speech). Goals hyped, misses deadpan.
+  const spoken = (s) => s.toLowerCase().replace(/\bthats\b/g, "that's").replace(/\bim\b/g, "I'm").replace(/\brn\b/g, 'right now')
+    .replace(/\bfr\b/g, 'for real').replace(/\btho\b/g, 'though').replace(/\bnpcs\b/g, 'N P Cs').replace(/km\/h/g, 'kilometres per hour')
+    .replace(/\bcv\b/g, 'C V').replace(/b-roll/g, 'B roll');
+  function speak(line, hype) {
+    if (!voice) return;
+    const t = spoken(line), rate = hype ? 1.15 : 1, pitch = hype ? 1.25 : 0.85;
+    try {
+      if (window.RFKVoice) return window.RFKVoice.speak(t, rate, pitch);
+      const ss = window.speechSynthesis;
+      if (!ss || typeof SpeechSynthesisUtterance === 'undefined') return;
+      ss.cancel();
+      const u = new SpeechSynthesisUtterance(t), en = ss.getVoices().filter((v) => /^en/i.test(v.lang));
+      u.rate = rate; u.pitch = pitch; u.lang = 'en-US';
+      if (en.length) u.voice = en.find((v) => /en-US/i.test(v.lang)) || en[0];
+      ss.speak(u);
+    } catch (_) {} // no voice beats a crash
+  }
+  function hush() { try { if (window.RFKVoice) window.RFKVoice.stop(); else if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) {} }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) hush(); });
   function drawTalk() { // types out under the result, above the replay buttons
     if (!talk || state !== 'result' || replay || talk.t < 0.5) return;
     const words = talk.s.slice(0, Math.floor((talk.t - 0.5) * 45)).split(' '), lines = [''];
@@ -1325,6 +1346,7 @@
       if (y >= 180 && y < 208) state = 'aim'; // RESUME
       else if (y >= 214 && y < 232) openHeroes('pause');
       else if (y >= 238 && y < 256) { state = 'title'; fade = 0.6; } // MAIN MENU
+      else if (y >= 262 && y < 280) { voice = !voice; if (!voice) hush(); persist(); } // COMMENTARY VOICE
       return;
     }
     if (state === 'title') {
@@ -1868,6 +1890,7 @@
       text('PAUSED', W / 2, 120, 5, '#ffffff', 0.5);
       text('LEVEL ' + (level + 1) + '   SCORE ' + score + '   ' + HEROES[hero].name, W / 2, 158, 1, '#ffe060', 0.5);
       btn('RESUME', 180, 28, true); btn('CHANGE PLAYER', 214, 18, false); btn('MAIN MENU', 238, 18, false);
+      btn('COMMENTARY VOICE: ' + (voice ? 'ON' : 'OFF'), 262, 18, false);
     }
     if (state === 'heroes') {
       ctx.fillStyle = 'rgba(6,8,24,0.88)'; ctx.fillRect(0, 0, W, H);
@@ -1930,7 +1953,7 @@
     tnow += dt; levelT += dt; stateT += dt;
     excite = Math.max(0, excite - dt * 0.22);
     if (msg) msg.t += dt;
-    if (talk) talk.t += dt;
+    if (talk) { talk.t += dt; if (!talk.said && talk.t >= 0.5 && state === 'result' && !replay) { talk.said = true; speak(talk.s, talk.hype); } }
     if (hint) hint.t += dt;
     if (state === 'aim' && levelT > 0.4 && !whistled) { whistled = true; sfx('whistle'); }
     if (state === 'runup' && stateT >= HEROES[hero].runT) {
@@ -1940,7 +1963,7 @@
       }
       Sim.kick(world, replay ? replay.rec.shot : shot); state = 'flight';
       if (!replay && lastKick && world.chaos) lastKick.shot.chaosName = world.chaos.name;
-      stateT = 0; acc = 0; sfx('kick'); fxFired = false; fxHit = null;
+      stateT = 0; acc = 0; sfx('kick'); fxFired = false; fxHit = null; hush();
       const fk = world.chaos && FX[world.chaos.name];
       if (fk && fk.atKick) {
         fxFired = true; sfx(fk.snd);
