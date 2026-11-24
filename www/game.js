@@ -1213,7 +1213,7 @@
     const y = 246;
     ctx.fillStyle = 'rgba(10,8,30,0.82)'; ctx.fillRect(4, y, W - 8, 13 + lines.length * 8);
     ctx.fillStyle = '#ff60c0'; ctx.fillRect(4, y, 2, 13 + lines.length * 8);
-    text('ZOOMER FM', 10, y + 3, 1, '#ff60c0');
+    text('COMMENTARY', 10, y + 3, 1, '#ff60c0');
     lines.forEach((l, i) => text(l, 10, y + 11 + i * 8, 1, '#ffffff'));
   }
   const showMsg = (big, sub, col, dur = 2.6, sc = 5, st = -1, extra = '') => (msg = { t: 0, big, sub, col, dur, sc, st, extra });
