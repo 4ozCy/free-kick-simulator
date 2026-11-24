@@ -1,3 +1,5 @@
-ZOOMER FM commentary voice: generated with ElevenLabs (https://elevenlabs.io), voice "Liam", model eleven_v4.
+Commentary voices generated with ElevenLabs (https://elevenlabs.io), model eleven_v4:
+  play-by-play (intro-*, kick-*, call-*): "Nathaniel - Live Football Commentator"
+  ZOOMER FM co-commentator (all other clips): "Liam - Viral Short-Form Storyteller"
 Recorded on the ElevenLabs free plan, which requires this attribution and allows non-commercial use only.
-Clip names are <moment>-<n>.mp3 and match the BANTER lines in game.js in order.
+ZOOMER FM clip names are <moment>-<n>.mp3 and match the BANTER lines in game.js in order.

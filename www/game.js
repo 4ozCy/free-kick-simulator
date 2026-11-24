@@ -1089,7 +1089,7 @@
       parts.push({ x, y, z, vx: Math.cos(a) * v, vy: up * (0.5 + Math.random()), vz: Math.sin(a) * v, life: 0.3 + Math.random() * 0.3, c: cols[i % cols.length] });
     }
   }
-  let voice = true; // ZOOMER FM talks out loud (toggle in the pause menu)
+  let voice = true, introDue = false; // commentary out loud (toggle in the pause menu)
   const GRASS_C = ['#58b858', '#3d9b3d', '#e6eee6'], DUST = ['#8a7a50', '#5a9a4a', '#b0a070'], SPARK = ['#ffffff', '#ffe060', '#ffb030'];
   try {
     const d = JSON.parse(localStorage.getItem('rfk-save') || 'null');
@@ -1184,12 +1184,27 @@
     const i = BAGS[key]();
     talk = { s: BANTER[key][i], clip: 'voice/' + key + '-' + i + '.mp3', t: 0 };
   }
-  let clip = null; // the recording playing now
-  function speak(src) {
+  // the broadcast: a play-by-play commentator calls the action (intro, the strike, the result), then ZOOMER FM gives his take.
+  // One voice at a time: a cut interrupts, otherwise the next clip waits for the current one to finish.
+  const PBP = { intro: 6, power: 2, curve: 2, trivela: 2, knuckle: 2, goal: 6, save: 3, wall: 3, post: 3, over: 3, wide: 3 };
+  const pbp = (key) => { BAGS['pbp-' + key] = BAGS['pbp-' + key] || Sim.bag(Array.from({ length: PBP[key] }, (_, i) => i)); return BAGS['pbp-' + key](); };
+  const callClip = (key) => 'voice/' + (key === 'intro' ? 'intro' : PBP[key] === 2 ? 'kick-' + key : 'call-' + key) + '-' + pbp(key) + '.mp3';
+  let clip = null, nextClip = null; // the recording playing now, and the one queued behind it
+  function vo(src, cut) {
     if (!voice) return;
-    try { hush(); clip = new Audio(src); clip.volume = 1; const p = clip.play(); if (p && p.catch) p.catch(() => {}); } catch (_) {} // no voice beats a crash
+    if (clip && !cut) { nextClip = src; return; }
+    hush(); start(src);
   }
-  function hush() { try { if (clip) { clip.pause(); clip = null; } } catch (_) {} }
+  function start(src) {
+    try {
+      const a = new Audio(src);
+      clip = a;
+      a.onended = a.onerror = () => { if (clip !== a) return; clip = null; if (nextClip) { const n = nextClip; nextClip = null; start(n); } };
+      const p = a.play();
+      if (p && p.catch) p.catch(() => { if (clip === a) clip = null; });
+    } catch (_) { clip = null; } // no voice beats a crash
+  }
+  function hush() { nextClip = null; try { if (clip) { clip.pause(); clip = null; } } catch (_) {} }
   document.addEventListener('visibilitychange', () => { if (document.hidden) hush(); });
   function drawTalk() { // types out under the result, above the replay buttons
     if (!talk || state !== 'result' || replay || talk.t < 0.5) return;
@@ -1198,7 +1213,7 @@
     const y = 246;
     ctx.fillStyle = 'rgba(10,8,30,0.82)'; ctx.fillRect(4, y, W - 8, 13 + lines.length * 8);
     ctx.fillStyle = '#ff60c0'; ctx.fillRect(4, y, 2, 13 + lines.length * 8);
-    text('ZOOMER FM', 10, y + 3, 1, '#ff60c0');
+    text('COMMENTARY', 10, y + 3, 1, '#ff60c0');
     lines.forEach((l, i) => text(l, 10, y + 11 + i * 8, 1, '#ffffff'));
   }
   const showMsg = (big, sub, col, dur = 2.6, sc = 5, st = -1, extra = '') => (msg = { t: 0, big, sub, col, dur, sc, st, extra });
@@ -1209,6 +1224,7 @@
     makeWorld();
     makeDefenders(); frameCam(); nd.fill(0); nv.fill(0);
     state = 'aim'; levelT = 0; stateT = 0; acc = 0; whistled = false; ptr = null; trail = []; fade = 0.8; kCheer = false; parts = [];
+    introDue = lives === maxLives() && Math.random() < 0.75; // most new levels get a word from the commentator
     const h = habit();
     showMsg('LEVEL ' + (level + 1), Math.round(world.L.dist) + 'M ' + sideName() + ' - ' + world.L.wallN + ' IN WALL', '#ffffff', 1.8, 4, starsBy[level] || 0,
       Math.abs(h) >= 0.75 ? 'KEEPER IS READING YOUR ' + (h > 0 ? 'RIGHT' : 'LEFT') + ' SIDE - MIX IT UP' : '');
@@ -1226,6 +1242,7 @@
     state = 'result'; stateT = 0;
     const r = world.result, e = world.ev, st = world.st;
     if (replay) { if (r === 'goal') { excite = 1; shake = 4; flash = 0.55; sfx('cheer'); burstConfetti(); } return; }
+    talk = null;
     if (r === 'goal') {
       recentGoals = recentGoals.concat(Math.sign(e.goal.x) || 0).slice(-4);
       const base = 100 + Math.round((world.L.dist - 18) * 10) + (e.target ? 200 : 0) + (e.post ? 50 : 0) + (st.late || st.knuckle ? 50 : 0);
@@ -1234,6 +1251,7 @@
       const today = new Date();
       Object.assign(lastKick, { pts: base, how: how.trim(), dist: Math.round(world.L.dist), d: today.getMonth() + 1 + '/' + today.getDate() });
       say(cheatKick ? 'cheat' : world.chaos ? 'chaos' : streak >= 2 ? 'streak' : e.target ? 'topbins' : e.post ? 'postin' : st.knuckle ? 'knuckle' : st.late ? 'trivela' : 'goal');
+      vo(callClip('goal'), true); vo(talk.clip);
       if (cheatKick) { // cheats score points but earn no stars, streak or best score
         score += base; runCheat = true;
         return showMsg('GOAL!', how + '+' + base, '#ffe040', 2.6, 5, -1, 'CHEATS ON - NO STARS');
@@ -1254,6 +1272,7 @@
       sfx('ooh');
       const left = lives - 1, gap = Sim.missBy(world), lost = streak >= 2 ? 'STREAK OF ' + streak + ' LOST' : '';
       say((r === 'wide' || r === 'over') && gap !== null && gap < 0.5 ? 'close' : BANTER[r] ? r : 'wide');
+      vo(callClip(PBP[r] ? r : 'wide'), true); vo(talk.clip);
       streak = 0;
       const sub = left > 0 ? left + (left > 1 ? ' BALLS LEFT' : ' BALL LEFT') : 'NO BALLS LEFT';
       if ((r === 'wide' || r === 'over') && gap !== null && gap < 0.5) // near misses: tell them how near
@@ -1862,7 +1881,7 @@
       text('LEVEL ' + (level + 1) + '   SCORE ' + score + '   ' + HEROES[hero].name, W / 2, 158, 1, '#ffe060', 0.5);
       btn('RESUME', 180, 28, true); btn('CHANGE PLAYER', 214, 18, false); btn('MAIN MENU', 238, 18, false);
       btn('COMMENTARY VOICE: ' + (voice ? 'ON' : 'OFF'), 262, 18, false);
-      text('COMMENTARY VOICE BY ELEVENLABS', W / 2, 286, 1, '#a0a8c0', 0.5); // attribution the free plan asks for
+      text('COMMENTARY VOICES BY ELEVENLABS', W / 2, 286, 1, '#a0a8c0', 0.5); // attribution the free plan asks for
     }
     if (state === 'heroes') {
       ctx.fillStyle = 'rgba(6,8,24,0.88)'; ctx.fillRect(0, 0, W, H);
@@ -1923,9 +1942,10 @@
     if (replay) dt *= slowmo ? 0.3 : 0.6; // replays: 60% speed, 30% in slow-mo
     else if (slowNow()) dt *= 0.3; // slow-mo: run-up, strike, flight and the first moment after, at 30%
     tnow += dt; levelT += dt; stateT += dt;
+    if (introDue && state === 'aim' && levelT > 0.9) { introDue = false; vo(callClip('intro')); }
     excite = Math.max(0, excite - dt * 0.22);
     if (msg) msg.t += dt;
-    if (talk) { talk.t += dt; if (!talk.said && talk.t >= 0.5 && state === 'result' && !replay) { talk.said = true; speak(talk.clip); } }
+    if (talk) talk.t += dt;
     if (hint) hint.t += dt;
     if (state === 'aim' && levelT > 0.4 && !whistled) { whistled = true; sfx('whistle'); }
     if (state === 'runup' && stateT >= HEROES[hero].runT) {
@@ -1935,7 +1955,9 @@
       }
       Sim.kick(world, replay ? replay.rec.shot : shot); state = 'flight';
       if (!replay && lastKick && world.chaos) lastKick.shot.chaosName = world.chaos.name;
-      stateT = 0; acc = 0; sfx('kick'); fxFired = false; fxHit = null; hush();
+      stateT = 0; acc = 0; sfx('kick'); fxFired = false; fxHit = null; hush(); introDue = false;
+      if (!replay && !(world.chaos && world.chaos.jug) && !(world.chaos && (world.chaos.drib || world.chaos.name === 'CHEEKY CHIP')) && Math.random() < 0.7)
+        vo(callClip(['power', 'curve', 'trivela', 'knuckle'][shot.style] || 'power'), true);
       const fk = world.chaos && FX[world.chaos.name];
       if (fk && fk.atKick) {
         fxFired = true; sfx(fk.snd);
@@ -1989,7 +2011,7 @@
       const sp = fl ? Math.hypot(b.vx, b.vy, b.vz) : 0, spin = fl ? Math.min(1, Math.hypot(b.sx, b.sy, b.sz)) : 0;
       whoosh.g.gain.setTargetAtTime(fl ? clamp((sp - 4) / 30, 0, 1) * (0.05 + spin * 0.12 + (world.wob ? 0.08 : 0)) : 0, t, 0.05);
       whoosh.f.frequency.setTargetAtTime(400 + sp * 30 + (world.wob ? Math.sin(tnow * 40) * 250 : spin * 600), t, 0.03);
-      crowd.g.gain.setTargetAtTime(0.03 + excite * 0.12, t, 0.3);
+      crowd.g.gain.setTargetAtTime((0.03 + excite * 0.12) * (clip ? 0.55 : 1), t, 0.3); // dips under the commentary
     }
   }
 
