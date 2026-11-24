@@ -1160,65 +1160,36 @@
   }
 
   // ------------------------------------------------------------------ ZOOMER FM: the co-commentator. Glazes goals, roasts misses.
-  // The pixel font has no apostrophes, so neither does he. {HERO} and {DIST} are filled in per shot.
-  const BANTER = {
-    goal: ['NAH THAT WAS DISGUSTING. IN A GOOD WAY.', 'THE KEEPER IS GOING TO THINK ABOUT THAT ONE IN THE SHOWER',
-      'BRO HAS AURA. INFINITE AURA.', 'CLIP IT. POST IT. FRAME IT. PUT IT IN A MUSEUM.', 'THATS SO TUFF IM LITERALLY SHAKING RN',
-      'NET COOKED, KEEPER COOKED, WALL COOKED. FULL BARBECUE.', 'MAIN CHARACTER BEHAVIOUR FR FR', 'YOU ATE AND LEFT NO CRUMBS. NOT ONE.',
-      'THE WALL JUMPED FOR NOTHING. RESPECT THE CARDIO THO', 'THIS IS WHY YOUR MUM SAYS YOU HAVE POTENTIAL',
-      'CERTIFIED BALLER MOMENT. NO NOTES. NO QUESTIONS.', 'THE KEEPER JUST GOT LEFT ON READ',
-      '{DIST} METRES?? {HERO} SAID DISTANCE IS A SOCIAL CONSTRUCT', '{HERO} IS NOT HUMAN. I NEED A BLOOD TEST.'],
-    topbins: ['TOP BINS?? THE SPIDER IN THAT CORNER IS HOMELESS NOW', 'PLACED IT WHERE THE KEEPER NEEDS A LADDER AND A PRAYER',
-      'ROOF OF THE NET. ROOF OF MY HEART.', 'BRO PICKED THE CORNER LIKE HE WAS ONLINE SHOPPING'],
+  // The pixel font has no apostrophes, so neither does he. Voice: recorded with ElevenLabs (see voice/CREDITS.txt).
+  const BANTER = { // shown text; each line has a recorded clip at voice/<moment>-<n>.mp3 (same order)
+    goal: ['NAH THAT WAS DISGUSTING. IN A GOOD WAY.', 'THE KEEPER IS GOING TO THINK ABOUT THAT ONE IN THE SHOWER', 'BRO HAS AURA. INFINITE AURA.', 'CLIP IT. POST IT. FRAME IT. PUT IT IN A MUSEUM.', 'THATS SO TUFF IM LITERALLY SHAKING RN', 'NET COOKED, KEEPER COOKED, WALL COOKED. FULL BARBECUE.', 'MAIN CHARACTER BEHAVIOUR FR FR', 'YOU ATE AND LEFT NO CRUMBS. NOT ONE.', 'THE WALL JUMPED FOR NOTHING. RESPECT THE CARDIO THO', 'THIS IS WHY YOUR MUM SAYS YOU HAVE POTENTIAL', 'CERTIFIED BALLER MOMENT. NO NOTES. NO QUESTIONS.', 'THE KEEPER JUST GOT LEFT ON READ', 'FROM THAT FAR?? BRO SAID DISTANCE IS A SOCIAL CONSTRUCT', 'BRO IS NOT HUMAN. I NEED A BLOOD TEST.'],
+    topbins: ['TOP BINS?? THE SPIDER IN THAT CORNER IS HOMELESS NOW', 'PLACED IT WHERE THE KEEPER NEEDS A LADDER AND A PRAYER', 'ROOF OF THE NET. ROOF OF MY HEART.', 'BRO PICKED THE CORNER LIKE HE WAS ONLINE SHOPPING'],
     postin: ['OFF THE POST AND IN. EVEN THE POST WANTED IT', 'RICOCHET RIZZ. THE WOODWORK IS ON YOUR SIDE', 'THE POST SAID GO ON THEN, BESTIE'],
-    knuckle: ['THAT BALL WAS DOING THE WORM IN MID AIR', 'THE KNUCKLEBALL HAD THE KEEPER DANCING TO THE WRONG SONG',
-      'IT WOBBLED LIKE MY WIFI AND STILL WENT IN'],
+    knuckle: ['THAT BALL WAS DOING THE WORM IN MID AIR', 'THE KNUCKLEBALL HAD THE KEEPER DANCING TO THE WRONG SONG', 'IT WOBBLED LIKE MY WIFI AND STILL WENT IN'],
     trivela: ['OUTSIDE OF THE BOOT?? SHOWING OFF ON PURPOSE', 'TRIVELA. BECAUSE NORMAL GOALS ARE FOR NPCS', 'THAT SWERVE HAD A PLOT TWIST IN ACT THREE'],
-    streak: ['ANOTHER ONE. THE KEEPER IS UPDATING HIS CV', 'BRO IS ON A HEATER. SOMEONE CALL THE FIRE BRIGADE',
-      'STREAK SO HOT THE GRASS IS TURNING BROWN', 'AT THIS POINT THE KEEPER IS JUST A SPECTATOR WITH GLOVES'],
-    chaos: ['THE CHAOS CHOSE YOU AND YOU SAID THANK YOU', 'SCRIPT WRITERS COULD NEVER', '10 PERCENT SKILL, 90 PERCENT NONSENSE. I RESPECT IT.',
-      'PHYSICS LEFT THE CHAT AND YOU STILL SCORED', 'THAT GOAL HAD SIDE QUESTS'],
+    streak: ['ANOTHER ONE. THE KEEPER IS UPDATING HIS CV', 'BRO IS ON A HEATER. SOMEONE CALL THE FIRE BRIGADE', 'STREAK SO HOT THE GRASS IS TURNING BROWN', 'AT THIS POINT THE KEEPER IS JUST A SPECTATOR WITH GLOVES'],
+    chaos: ['THE CHAOS CHOSE YOU AND YOU SAID THANK YOU', 'SCRIPT WRITERS COULD NEVER', '10 PERCENT SKILL, 90 PERCENT NONSENSE. I RESPECT IT.', 'PHYSICS LEFT THE CHAT AND YOU STILL SCORED', 'THAT GOAL HAD SIDE QUESTS'],
     cheat: ['1000 KM/H? THAT GOAL HAS AN ASTERISK AND A LAWYER', 'SCORED WITH CHEATS ON. STILL COUNTS IN YOUR HEAD THO', 'BRO DOWNLOADED THAT GOAL'],
-    save: ['THE KEEPER SAW THAT COMING MID NAP', 'YOU PASSED IT TO HIM. ARE YOU TWO DATING?', 'HE DID NOT EVEN BREAK A SWEAT. EMBARRASSING.',
-      'STRAIGHT AT THE KEEPER LIKE A DELIVERY DRIVER', 'HE IS COLLECTING YOUR SHOTS LIKE TRADING CARDS',
-      'THAT SAVE GOES ON HIS HIGHLIGHT REEL. YOU ARE THE B-ROLL'],
-    wall: ['YOU HIT THE WALL. THE WALL DID NOT EVEN FLINCH', 'BRO TRIED TO SHOOT THROUGH FOUR GROWN MEN', 'THE WALL SAID NOT TODAY, BESTIE',
-      'THAT WAS A PASS TO THE DEFENCE. WHOLESOME, HONESTLY.', 'SKILL ISSUE, BUT MAKE IT A BRICK',
-      '{HERO} REALLY LOOKED AT A WALL OF HUMANS AND WENT YEAH'],
-    post: ['THE POST IS THE ONLY ONE WHO TOUCHED IT. LOWKEY SAD', 'CLANG. THAT SOUND IS YOUR CONFIDENCE.', 'SO CLOSE YET SO METAL',
-      'THE WOODWORK HAS MORE TOUCHES THAN YOU TODAY'],
-    over: ['THAT BALL IS IN ORBIT. SPACE AGENCIES ARE CALLING', 'ROW Z SAYS THANKS FOR THE SOUVENIR', 'AIMED FOR THE MOON. MISSED THE MOON TOO.',
-      'THE CROSSBAR WAS NEVER IN DANGER. NEITHER WAS ANYONE.', 'THAT WENT SO HIGH IT NEEDS A PASSPORT'],
-    wide: ['WIDE. THE CORNER FLAG IS NERVOUS NOW', 'BRO SHOT AT A DIFFERENT GOAL IN A DIFFERENT STADIUM', 'THE NET IS RIGHT THERE. IT IS NOT HIDING.',
-      'THAT WAS A CROSS TO NOBODY', 'RESPECTFULLY... WHAT WAS THAT', 'FROM {DIST} METRES AND YOU MISSED THE WHOLE PLANET'],
-    close: ['INCHES. CRUEL, PAINFUL, CHARACTER BUILDING INCHES', 'SO CLOSE I FELT IT IN MY SOUL', 'NEARLY. NEARLY DOES NOT GO IN THE GROUP CHAT THO',
-      'THE NET FELT THE BREEZE AND GOT JEALOUS'],
+    save: ['THE KEEPER SAW THAT COMING MID NAP', 'YOU PASSED IT TO HIM. ARE YOU TWO DATING?', 'HE DID NOT EVEN BREAK A SWEAT. EMBARRASSING.', 'STRAIGHT AT THE KEEPER LIKE A DELIVERY DRIVER', 'HE IS COLLECTING YOUR SHOTS LIKE TRADING CARDS', 'THAT SAVE GOES ON HIS HIGHLIGHT REEL. YOU ARE THE B-ROLL'],
+    wall: ['YOU HIT THE WALL. THE WALL DID NOT EVEN FLINCH', 'BRO TRIED TO SHOOT THROUGH FOUR GROWN MEN', 'THE WALL SAID NOT TODAY, BESTIE', 'THAT WAS A PASS TO THE DEFENCE. WHOLESOME, HONESTLY.', 'SKILL ISSUE, BUT MAKE IT A BRICK', 'BRO REALLY LOOKED AT A WALL OF HUMANS AND WENT YEAH'],
+    post: ['THE POST IS THE ONLY ONE WHO TOUCHED IT. LOWKEY SAD', 'CLANG. THAT SOUND IS YOUR CONFIDENCE.', 'SO CLOSE YET SO METAL', 'THE WOODWORK HAS MORE TOUCHES THAN YOU TODAY'],
+    over: ['THAT BALL IS IN ORBIT. SPACE AGENCIES ARE CALLING', 'ROW Z SAYS THANKS FOR THE SOUVENIR', 'AIMED FOR THE MOON. MISSED THE MOON TOO.', 'THE CROSSBAR WAS NEVER IN DANGER. NEITHER WAS ANYONE.', 'THAT WENT SO HIGH IT NEEDS A PASSPORT'],
+    wide: ['WIDE. THE CORNER FLAG IS NERVOUS NOW', 'BRO SHOT AT A DIFFERENT GOAL IN A DIFFERENT STADIUM', 'THE NET IS RIGHT THERE. IT IS NOT HIDING.', 'THAT WAS A CROSS TO NOBODY', 'RESPECTFULLY... WHAT WAS THAT', 'YOU HAD THE WHOLE GOAL AND MISSED THE WHOLE PLANET'],
+    close: ['INCHES. CRUEL, PAINFUL, CHARACTER BUILDING INCHES', 'SO CLOSE I FELT IT IN MY SOUL', 'NEARLY. NEARLY DOES NOT GO IN THE GROUP CHAT THO', 'THE NET FELT THE BREEZE AND GOT JEALOUS'],
   };
-  const BAGS = {}, HYPE = ['goal', 'topbins', 'postin', 'knuckle', 'trivela', 'streak', 'chaos', 'cheat'];
-  let talk = null; // { s: the line, t: seconds since the result, hype: a goal (excited voice) or a miss (deadpan) }
+  const BAGS = {};
+  let talk = null; // { s: the line, clip: its recording, t: seconds since the result }
   function say(key) { // the next line for this moment, never the same one twice running
-    BAGS[key] = BAGS[key] || Sim.bag(BANTER[key]);
-    talk = { s: BAGS[key]().replace('{HERO}', HEROES[hero].name).replace('{DIST}', Math.round(world.L.dist)), t: 0, hype: HYPE.indexOf(key) >= 0 };
+    BAGS[key] = BAGS[key] || Sim.bag(BANTER[key].map((_, i) => i));
+    const i = BAGS[key]();
+    talk = { s: BANTER[key][i], clip: 'voice/' + key + '-' + i + '.mp3', t: 0 };
   }
-  // the voice: the phone's own text-to-speech (Android app: native bridge; browsers: Web Speech). Goals hyped, misses deadpan.
-  const spoken = (s) => s.toLowerCase().replace(/\bthats\b/g, "that's").replace(/\bim\b/g, "I'm").replace(/\brn\b/g, 'right now')
-    .replace(/\bfr\b/g, 'for real').replace(/\btho\b/g, 'though').replace(/\bnpcs\b/g, 'N P Cs').replace(/km\/h/g, 'kilometres per hour')
-    .replace(/\bcv\b/g, 'C V').replace(/b-roll/g, 'B roll');
-  function speak(line, hype) {
+  let clip = null; // the recording playing now
+  function speak(src) {
     if (!voice) return;
-    const t = spoken(line), rate = hype ? 1.15 : 1, pitch = hype ? 1.25 : 0.85;
-    try {
-      if (window.RFKVoice) return window.RFKVoice.speak(t, rate, pitch);
-      const ss = window.speechSynthesis;
-      if (!ss || typeof SpeechSynthesisUtterance === 'undefined') return;
-      ss.cancel();
-      const u = new SpeechSynthesisUtterance(t), en = ss.getVoices().filter((v) => /^en/i.test(v.lang));
-      u.rate = rate; u.pitch = pitch; u.lang = 'en-US';
-      if (en.length) u.voice = en.find((v) => /en-US/i.test(v.lang)) || en[0];
-      ss.speak(u);
-    } catch (_) {} // no voice beats a crash
+    try { hush(); clip = new Audio(src); clip.volume = 1; const p = clip.play(); if (p && p.catch) p.catch(() => {}); } catch (_) {} // no voice beats a crash
   }
-  function hush() { try { if (window.RFKVoice) window.RFKVoice.stop(); else if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) {} }
+  function hush() { try { if (clip) { clip.pause(); clip = null; } } catch (_) {} }
   document.addEventListener('visibilitychange', () => { if (document.hidden) hush(); });
   function drawTalk() { // types out under the result, above the replay buttons
     if (!talk || state !== 'result' || replay || talk.t < 0.5) return;
@@ -1891,6 +1862,7 @@
       text('LEVEL ' + (level + 1) + '   SCORE ' + score + '   ' + HEROES[hero].name, W / 2, 158, 1, '#ffe060', 0.5);
       btn('RESUME', 180, 28, true); btn('CHANGE PLAYER', 214, 18, false); btn('MAIN MENU', 238, 18, false);
       btn('COMMENTARY VOICE: ' + (voice ? 'ON' : 'OFF'), 262, 18, false);
+      text('COMMENTARY VOICE BY ELEVENLABS', W / 2, 286, 1, '#a0a8c0', 0.5); // attribution the free plan asks for
     }
     if (state === 'heroes') {
       ctx.fillStyle = 'rgba(6,8,24,0.88)'; ctx.fillRect(0, 0, W, H);
@@ -1953,7 +1925,7 @@
     tnow += dt; levelT += dt; stateT += dt;
     excite = Math.max(0, excite - dt * 0.22);
     if (msg) msg.t += dt;
-    if (talk) { talk.t += dt; if (!talk.said && talk.t >= 0.5 && state === 'result' && !replay) { talk.said = true; speak(talk.s, talk.hype); } }
+    if (talk) { talk.t += dt; if (!talk.said && talk.t >= 0.5 && state === 'result' && !replay) { talk.said = true; speak(talk.clip); } }
     if (hint) hint.t += dt;
     if (state === 'aim' && levelT > 0.4 && !whistled) { whistled = true; sfx('whistle'); }
     if (state === 'runup' && stateT >= HEROES[hero].runT) {
