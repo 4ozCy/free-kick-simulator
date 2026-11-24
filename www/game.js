@@ -1177,43 +1177,47 @@
     wide: ['WIDE. THE CORNER FLAG IS NERVOUS NOW', 'BRO SHOT AT A DIFFERENT GOAL IN A DIFFERENT STADIUM', 'THE NET IS RIGHT THERE. IT IS NOT HIDING.', 'THAT WAS A CROSS TO NOBODY', 'RESPECTFULLY... WHAT WAS THAT', 'YOU HAD THE WHOLE GOAL AND MISSED THE WHOLE PLANET'],
     close: ['INCHES. CRUEL, PAINFUL, CHARACTER BUILDING INCHES', 'SO CLOSE I FELT IT IN MY SOUL', 'NEARLY. NEARLY DOES NOT GO IN THE GROUP CHAT THO', 'THE NET FELT THE BREEZE AND GOT JEALOUS'],
   };
+  // The broadcast. NATE (play-by-play) sets up the level, reacts to the strike, calls every chaos event and the result,
+  // sometimes hands over to LIAM (the Gen Z co-commentator) and sometimes answers his take. One voice at a time,
+  // queued; a cut interrupts. Every clip is voice/<name>.mp3; SUBS holds what each says (N/L = who) for the subtitles.
+  const SUBS = {"intro-0":"NFREE KICK, THEN. AND THIS ONE IS WELL WITHIN RANGE.","intro-1":"NTHE WALL IS SET. THE KEEPER IS BARKING ORDERS.","intro-2":"NHERES A CHANCE! CAN HE BEND ONE IN FROM HERE?","intro-3":"NTHE CROWD ARE ON THEIR FEET. EVERYONE KNOWS WHATS COMING.","intro-4":"NBIG MOMENT, THIS. BALL PLACED. DEEP BREATH.","intro-5":"NOOH, THIS IS A DANGEROUS POSITION!","kick-power-0":"NHES LEATHERED IT!","kick-power-1":"NOH, HES CAUGHT THAT!","kick-curve-0":"NBENDING, BENDING!","kick-curve-1":"NHES CURLED IT!","kick-trivela-0":"NOUTSIDE OF THE BOOT!","kick-trivela-1":"NOOH, THE TRIVELA!","kick-knuckle-0":"NITS MOVING ALL OVER THE PLACE!","kick-knuckle-1":"NNO SPIN ON THAT!","call-goal-0":"NGOOOAL! WHAT A STRIKE!","call-goal-1":"NITS IN! HES DONE IT!","call-goal-2":"NOH, THAT IS SENSATIONAL!","call-goal-3":"NGET IN! TOP DRAWER!","call-goal-4":"NGOAL! THE KEEPER HAD NO CHANCE!","call-goal-5":"NUNBELIEVABLE! RIGHT INTO THE CORNER!","call-save-0":"NSAVED! BRILLIANT FROM THE KEEPER!","call-save-1":"NOH, WHAT A STOP!","call-save-2":"NKEPT OUT! STRONG HANDS!","call-wall-0":"NSTRAIGHT INTO THE WALL!","call-wall-1":"NBLOCKED! THE WALL STANDS FIRM.","call-wall-2":"NCHARGED DOWN!","call-post-0":"NOFF THE POST!","call-post-1":"NOH, THE WOODWORK! SO CLOSE!","call-post-2":"NITS HIT THE FRAME!","call-over-0":"NOVER THE BAR.","call-over-1":"NTHATS GONE HIGH. VERY HIGH.","call-over-2":"NINTO THE STANDS, THAT ONE.","call-wide-0":"NJUST WIDE!","call-wide-1":"NWIDE OF THE POST.","call-wide-2":"NOFF TARGET, THAT ONE.","ev-gust":"NOH, A GUST OF WIND TAKES IT!","ev-tailwind":"NTHE WINDS RIGHT BEHIND IT!","ev-headwind":"NTHE WINDS PUSHING IT BACK!","ev-bee":"NIS THAT A BEE? ITS CHASING THE BALL!","ev-super-bouncy":"NTHAT BALLS BOUNCING LIKE A TOY!","ev-anvil":"NSOMEONES DROPPED AN ANVIL ON IT!","ev-moon-mode":"NGRAVITYS GONE! ITS FLOATING!","ev-bird":"NOH, A BIRDS CLIPPED IT!","ev-dog":"NA DOG ON THE PITCH! ITS HEADED IT!","ev-pigeon":"NA PIGEON HAS LANDED ON THE BALL!","ev-beach-ball":"NA BEACH BALL, FROM THE CROWD!","ev-divot":"NITS HOPPED OFF A DIVOT!","ev-mascot-trip":"NTHE MASCOTS FALLEN RIGHT INTO IT!","ev-streaker":"NA STREAKER! SOMEONE COVER HIM UP!","ev-slippery":"NHES SLIPPED AS HE STRIKES IT!","ev-deflated":"NOH DEAR, THE BALLS GONE SOFT.","ev-sun-glare":"NTHE KEEPERS BLINDED BY THE SUN!","ev-whistle":"NWAS THAT THE WHISTLE? THE KEEPERS STOPPED!","ev-confetti":"NCONFETTI EVERYWHERE! LOVELY.","ev-drip":"NA DRIP FROM THE ROOF. FASCINATING.","ev-shin-pad":"NA SHIN PAD HAS FLOWN ONTO THE PITCH.","ev-the-wave":"NTHE CROWD ARE DOING THE WAVE!","ev-corner-flag":"NTHE CORNER FLAG HAS FALLEN OVER!","ev-shoelaces":"NTHEYVE ALL TRIPPED OVER THEIR LACES!","ev-cat":"NA CAT! THE KEEPERS TERRIFIED!","ev-nap":"NIS THE KEEPER ASLEEP?!","ev-tying-laces":"NTHE KEEPERS TYING HIS LACES!","ev-giant-keeper":"NTHE KEEPER IS ENORMOUS!","ev-tiny-keeper":"NTHE KEEPER HAS SHRUNK!","ev-selfie":"NTHE WALL ARE TAKING A SELFIE!","ev-dance":"NTHE WALL HAVE STARTED DANCING!","ev-on-strike":"NTHE WALL HAVE WALKED OFF!","ev-big-goal":"NTHE GOALS GOT BIGGER!","ev-tiny-goal":"NTHE GOAL HAS SHRUNK!","ev-juggle":"NOH, HES JUGGLING IT FIRST!","ev-dribble":"NHES TAKING THEM ALL ON HIMSELF!","ev-cheeky-chip":"NHES CHIPPED IT DOWN THE MIDDLE!","hand-goal-0":"NLIAM, YOURE OFF YOUR SEAT!","hand-goal-1":"NLIAM, YOUR THOUGHTS?","hand-goal-2":"NWHAT DID YOU MAKE OF THAT, LIAM?","hand-miss-0":"NLIAM, BE KIND.","hand-miss-1":"NLIAM, WHERE DID THAT GO WRONG?","hand-miss-2":"NLIAMS SHAKING HIS HEAD.","reply-0":"NIM NOT SURE THATS A REAL WORD, LIAM.","reply-1":"NSTRONG ANALYSIS, AS ALWAYS.","reply-2":"NTHE YOUTH OF TODAY.","reply-3":"NILL TAKE YOUR WORD FOR THAT.","reply-4":"NI NEED A TRANSLATOR FOR THIS MAN.","reply-miss-0":"NHARSH, BUT FAIR.","reply-miss-1":"NSTEADY ON, LIAM.","reply-miss-2":"NBE NICE!","react-0":"LBRO, WHAT IS HAPPENING RIGHT NOW?","react-1":"LYEAH, THIS IS TOTALLY NORMAL FOOTBALL.","react-2":"LNATE, IM CRYING. THIS GAME IS UNWELL.","react-3":"LNAH, THE CHAOS IS ELITE TODAY.","react-4":"LWHO APPROVED THIS? GENUINELY ASKING.","react-5":"LTHE CHAOS IS CHOOSING VIOLENCE AGAIN."};
   const BAGS = {};
-  let talk = null; // { s: the line, clip: its recording, t: seconds since the result }
-  function say(key) { // the next line for this moment, never the same one twice running
-    BAGS[key] = BAGS[key] || Sim.bag(BANTER[key].map((_, i) => i));
-    const i = BAGS[key]();
-    talk = { s: BANTER[key][i], clip: 'voice/' + key + '-' + i + '.mp3', t: 0 };
-  }
-  // the broadcast: a play-by-play commentator calls the action (intro, the strike, the result), then ZOOMER FM gives his take.
-  // One voice at a time: a cut interrupts, otherwise the next clip waits for the current one to finish.
+  const pick = (key, n) => { BAGS[key] = BAGS[key] || Sim.bag(Array.from({ length: n }, (_, i) => i)); return key + '-' + BAGS[key](); };
+  const take = (key) => pick(key, BANTER[key].length); // a LIAM take, e.g. 'save-3'
   const PBP = { intro: 6, power: 2, curve: 2, trivela: 2, knuckle: 2, goal: 6, save: 3, wall: 3, post: 3, over: 3, wide: 3 };
-  const pbp = (key) => { BAGS['pbp-' + key] = BAGS['pbp-' + key] || Sim.bag(Array.from({ length: PBP[key] }, (_, i) => i)); return BAGS['pbp-' + key](); };
-  const callClip = (key) => 'voice/' + (key === 'intro' ? 'intro' : PBP[key] === 2 ? 'kick-' + key : 'call-' + key) + '-' + pbp(key) + '.mp3';
-  let clip = null, nextClip = null; // the recording playing now, and the one queued behind it
-  function vo(src, cut) {
-    if (!voice) return;
-    if (clip && !cut) { nextClip = src; return; }
-    hush(); start(src);
+  const callClip = (key) => pick(key === 'intro' ? 'intro' : PBP[key] === 2 ? 'kick-' + key : 'call-' + key, PBP[key]);
+  const evClip = (name) => 'ev-' + name.toLowerCase().replace(/ /g, '-');
+  function subOf(name) { // [who, text]
+    if (SUBS[name]) return [SUBS[name][0], SUBS[name].slice(1)];
+    const m = /^([a-z]+)-(\d+)$/.exec(name), b = m && BANTER[m[1]];
+    return ['L', b ? b[+m[2]] : ''];
   }
-  function start(src) {
+  let clip = null, cur = null, curT = 0, queue = []; // the recording playing now, its name, how long it has played, what waits
+  function vo(name, mode) { // mode: 'cut' interrupts; 'next' plays after this one and drops the rest; 'after' joins the end
+    if (!voice || !name) return;
+    if (mode === 'cut' || !clip) { hush(); start(name); return; }
+    if (mode === 'next') queue = [name]; else queue.push(name);
+  }
+  function start(name) {
     try {
-      const a = new Audio(src);
-      clip = a;
-      a.onended = a.onerror = () => { if (clip !== a) return; clip = null; if (nextClip) { const n = nextClip; nextClip = null; start(n); } };
+      const a = new Audio('voice/' + name + '.mp3');
+      clip = a; cur = name; curT = 0;
+      a.onended = a.onerror = () => { if (clip !== a) return; clip = null; cur = null; if (queue.length) start(queue.shift()); };
       const p = a.play();
-      if (p && p.catch) p.catch(() => { if (clip === a) clip = null; });
-    } catch (_) { clip = null; } // no voice beats a crash
+      if (p && p.catch) p.catch(() => { if (clip === a) { clip = null; cur = null; } });
+    } catch (_) { clip = null; cur = null; } // no voice beats a crash
   }
-  function hush() { nextClip = null; try { if (clip) { clip.pause(); clip = null; } } catch (_) {} }
+  function hush() { queue = []; cur = null; try { if (clip) { clip.pause(); clip = null; } } catch (_) {} }
   document.addEventListener('visibilitychange', () => { if (document.hidden) hush(); });
-  function drawTalk() { // types out under the result, above the replay buttons
-    if (!talk || state !== 'result' || replay || talk.t < 0.5) return;
-    const words = talk.s.slice(0, Math.floor((talk.t - 0.5) * 45)).split(' '), lines = [''];
-    for (const wd of words) { const cur = lines[lines.length - 1]; if ((cur + ' ' + wd).trim().length > 60) lines.push(wd); else lines[lines.length - 1] = (cur + ' ' + wd).trim(); }
-    const y = 246;
+  function drawTalk() { // subtitles: who is talking and what, typed out as they say it
+    if (!cur || replay || !/aim|runup|flight|result/.test(state)) return;
+    const st = subOf(cur), who = st[0] === 'N' ? 'NATE' : 'LIAM', col = st[0] === 'N' ? '#ffe040' : '#ff60c0';
+    const words = st[1].slice(0, Math.floor(curT * 40)).split(' '), lines = [''];
+    for (const wd of words) { const c = lines[lines.length - 1]; if ((c + ' ' + wd).trim().length > 60) lines.push(wd); else lines[lines.length - 1] = (c + ' ' + wd).trim(); }
+    const y = state === 'result' ? 246 : 86; // under the chaos banner in play, under the result message after
     ctx.fillStyle = 'rgba(10,8,30,0.82)'; ctx.fillRect(4, y, W - 8, 13 + lines.length * 8);
-    ctx.fillStyle = '#ff60c0'; ctx.fillRect(4, y, 2, 13 + lines.length * 8);
-    text('COMMENTARY', 10, y + 3, 1, '#ff60c0');
+    ctx.fillStyle = col; ctx.fillRect(4, y, 2, 13 + lines.length * 8);
+    text('COMMENTARY', 10, y + 3, 1, '#a0a8c0'); text(who, W - 10, y + 3, 1, col, 1);
     lines.forEach((l, i) => text(l, 10, y + 11 + i * 8, 1, '#ffffff'));
   }
   const showMsg = (big, sub, col, dur = 2.6, sc = 5, st = -1, extra = '') => (msg = { t: 0, big, sub, col, dur, sc, st, extra });
@@ -1242,7 +1246,6 @@
     state = 'result'; stateT = 0;
     const r = world.result, e = world.ev, st = world.st;
     if (replay) { if (r === 'goal') { excite = 1; shake = 4; flash = 0.55; sfx('cheer'); burstConfetti(); } return; }
-    talk = null;
     if (r === 'goal') {
       recentGoals = recentGoals.concat(Math.sign(e.goal.x) || 0).slice(-4);
       const base = 100 + Math.round((world.L.dist - 18) * 10) + (e.target ? 200 : 0) + (e.post ? 50 : 0) + (st.late || st.knuckle ? 50 : 0);
@@ -1250,8 +1253,7 @@
       const how = e.target ? 'TOP BINS! ' : e.post ? 'IN OFF THE POST! ' : st.knuckle ? 'KNUCKLEBALL! ' : st.late ? 'TRIVELA! ' : '';
       const today = new Date();
       Object.assign(lastKick, { pts: base, how: how.trim(), dist: Math.round(world.L.dist), d: today.getMonth() + 1 + '/' + today.getDate() });
-      say(cheatKick ? 'cheat' : world.chaos ? 'chaos' : streak >= 2 ? 'streak' : e.target ? 'topbins' : e.post ? 'postin' : st.knuckle ? 'knuckle' : st.late ? 'trivela' : 'goal');
-      vo(callClip('goal'), true); vo(talk.clip);
+      chat('goal', take(cheatKick ? 'cheat' : world.chaos ? 'chaos' : streak >= 2 ? 'streak' : e.target ? 'topbins' : e.post ? 'postin' : st.knuckle ? 'knuckle' : st.late ? 'trivela' : 'goal'));
       if (cheatKick) { // cheats score points but earn no stars, streak or best score
         score += base; runCheat = true;
         return showMsg('GOAL!', how + '+' + base, '#ffe040', 2.6, 5, -1, 'CHEATS ON - NO STARS');
@@ -1271,14 +1273,21 @@
     } else {
       sfx('ooh');
       const left = lives - 1, gap = Sim.missBy(world), lost = streak >= 2 ? 'STREAK OF ' + streak + ' LOST' : '';
-      say((r === 'wide' || r === 'over') && gap !== null && gap < 0.5 ? 'close' : BANTER[r] ? r : 'wide');
-      vo(callClip(PBP[r] ? r : 'wide'), true); vo(talk.clip);
+      chat(PBP[r] ? r : 'wide', take((r === 'wide' || r === 'over') && gap !== null && gap < 0.5 ? 'close' : BANTER[r] ? r : 'wide'));
       streak = 0;
       const sub = left > 0 ? left + (left > 1 ? ' BALLS LEFT' : ' BALL LEFT') : 'NO BALLS LEFT';
       if ((r === 'wide' || r === 'over') && gap !== null && gap < 0.5) // near misses: tell them how near
         return showMsg('SO CLOSE!', Math.max(1, Math.round(gap * 100)) + 'CM ' + (r === 'over' ? 'OVER' : 'WIDE') + ' - ' + sub, '#ffa040', 2.6, 5, -1, lost);
       showMsg({ save: 'SAVED!', wall: 'BLOCKED!', post: 'POST!', over: 'OVER!', wide: 'WIDE!' }[r] || 'MISS!', sub, '#ff6a5a', 2.6, 5, -1, lost);
     }
+  }
+  function chaosTalk() { if (replay || !world.chaos) return; vo(evClip(world.chaos.name), 'cut'); if (Math.random() < 0.6) vo(pick('react', 6), 'after'); }
+  function chat(call, liam) { // NATE calls it, maybe hands over, LIAM has his say, maybe NATE answers
+    const goal = call === 'goal';
+    vo(callClip(call), world.chaos && clip ? 'next' : 'cut'); // let a chaos call finish first
+    if (Math.random() < 0.35) vo(pick(goal ? 'hand-goal' : 'hand-miss', 3), 'after');
+    vo(liam, 'after');
+    if (Math.random() < 0.45) vo(!goal && Math.random() < 0.5 ? pick('reply-miss', 3) : pick('reply', 5), 'after');
   }
   function burstConfetti() {
     const cols = ['#ffd020', '#ff4060', '#40c0ff', '#60ff80', '#ffffff', '#ff8020'];
@@ -1942,10 +1951,11 @@
     if (replay) dt *= slowmo ? 0.3 : 0.6; // replays: 60% speed, 30% in slow-mo
     else if (slowNow()) dt *= 0.3; // slow-mo: run-up, strike, flight and the first moment after, at 30%
     tnow += dt; levelT += dt; stateT += dt;
-    if (introDue && state === 'aim' && levelT > 0.9) { introDue = false; vo(callClip('intro')); }
+    if (introDue && state === 'aim' && levelT > 0.9 && !clip) { introDue = false; vo(callClip('intro')); } // waits for the last chat to end
+    if (introDue && levelT > 6) introDue = false; // too late to set the scene
     excite = Math.max(0, excite - dt * 0.22);
     if (msg) msg.t += dt;
-    if (talk) talk.t += dt;
+    if (cur) curT += dt;
     if (hint) hint.t += dt;
     if (state === 'aim' && levelT > 0.4 && !whistled) { whistled = true; sfx('whistle'); }
     if (state === 'runup' && stateT >= HEROES[hero].runT) {
@@ -1956,11 +1966,10 @@
       Sim.kick(world, replay ? replay.rec.shot : shot); state = 'flight';
       if (!replay && lastKick && world.chaos) lastKick.shot.chaosName = world.chaos.name;
       stateT = 0; acc = 0; sfx('kick'); fxFired = false; fxHit = null; hush(); introDue = false;
-      if (!replay && !(world.chaos && world.chaos.jug) && !(world.chaos && (world.chaos.drib || world.chaos.name === 'CHEEKY CHIP')) && Math.random() < 0.7)
-        vo(callClip(['power', 'curve', 'trivela', 'knuckle'][shot.style] || 'power'), true);
+      if (!replay && !world.chaos && Math.random() < 0.7) vo(callClip(['power', 'curve', 'trivela', 'knuckle'][shot.style] || 'power'), 'cut'); // chaos shots get the event call instead
       const fk = world.chaos && FX[world.chaos.name];
       if (fk && fk.atKick) {
-        fxFired = true; sfx(fk.snd);
+        fxFired = true; sfx(fk.snd); chaosTalk();
         if (fk.sparkle) puff(world.ball.x, 0.1, world.ball.z, 16, [fk.sparkle, '#ffffff'], 1.5, 1);
         if (fk.flash) world.wall.forEach((d) => puff(d.x, 2.1, d.z, 4, ['#ffffff', '#ffffa0'], 0.6, 0.4)); // camera flashes
       }
@@ -1991,7 +2000,7 @@
       if (state === 'flight' && !b.held) { trail.push([b.x, b.y, b.z]); if (trail.length > 14) trail.shift(); }
       const c = world.chaos, fe = c && FX[c.name];
       if (fe && !fxFired && world.ft >= c.t0) {
-        fxFired = true; sfx(fe.snd);
+        fxFired = true; sfx(fe.snd); chaosTalk();
         if (fe.confetti) burstConfetti();
         if (fe.wave) excite = Math.max(excite, 0.7);
         if (fe.dirt) puff(b.x, 0.05, b.z, 12, DUST, 1.2, 1.5);

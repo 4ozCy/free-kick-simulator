@@ -1,5 +1,5 @@
 Commentary voices generated with ElevenLabs (https://elevenlabs.io), model eleven_v4:
-  play-by-play (intro-*, kick-*, call-*): "Nathaniel - Live Football Commentator"
-  ZOOMER FM co-commentator (all other clips): "Liam - Viral Short-Form Storyteller"
+  NATE, play-by-play (intro-*, kick-*, call-*, ev-*, hand-*, reply-*): "Nathaniel - Live Football Commentator"
+  LIAM, co-commentator (react-* and the <moment>-<n> takes): "Liam - Viral Short-Form Storyteller"
 Recorded on the ElevenLabs free plan, which requires this attribution and allows non-commercial use only.
-ZOOMER FM clip names are <moment>-<n>.mp3 and match the BANTER lines in game.js in order.
+Subtitles for every clip live in game.js (SUBS for NATE and the reactions, BANTER for LIAM's takes).
