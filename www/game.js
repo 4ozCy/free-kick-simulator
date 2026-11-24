@@ -1154,31 +1154,21 @@
   const chordsOf = (list) => list.map((c) => c.split('|').map((h) => h.split(' ').map(MIDI)));
   const rootsOf = (list) => list.map((b) => b.split('|').map(MIDI));
   const JTRACKS = [
-    { name: 'BRAZIL BOUNCE', bpm: 140, chords: THEME.chords, bass: THEME.bass, lead: THEME.lead, chop: { 2: 'hey', 7: 'ah', 11: 'oh', 14: 'hey' }, extra: 'agogo' },
-    { name: 'COPACABANA NIGHTS', bpm: 140, chop: { 2: 'oh', 6: 'ah', 10: 'oh', 14: 'hey' }, extra: 'cuica',
-      chords: chordsOf(['A3 C4 E4', 'F3 A3 C4', 'C4 E4 G4', 'G3 B3 D4', 'A3 C4 E4', 'F3 A3 C4', 'D3 F3 A3|E3 G#3 B3', 'A3 C4 E4']),
-      bass: rootsOf(['A2', 'F2', 'C2', 'G2', 'A2', 'F2', 'D2|E2', 'A2']),
-      lead: ['E5:0:2 C5:2:1 E5:3:2 A5:6:1 G5:7:2 E5:9:1 D5:10:2 C5:12:2 A4:14:2', 'C5:0:2 A4:2:1 C5:3:2 F5:6:2 E5:8:1 C5:9:2 A4:11:3',
-        'G5:0:2 E5:2:1 G5:3:2 C6:6:2 B5:8:1 G5:9:2 E5:11:3', 'D5:0:2 B4:2:1 D5:3:2 G5:6:2 F5:8:1 D5:9:2 B4:11:3',
-        'E5:0:1 E5:1:1 A5:3:2 C6:6:2 B5:8:1 A5:9:2 E5:11:3', 'F5:0:2 E5:2:1 C5:3:2 A4:6:2 C5:8:2 F5:10:2 E5:12:4',
-        'D5:0:2 F5:2:1 A5:3:2 F5:6:2 E5:8:2 G#5:10:2 B5:12:2 E5:14:2', 'A5:0:3 E5:3:1 C5:4:2 A4:6:2'].map(notes) },
-    { name: 'TOP BINS', bpm: 142, chop: { 2: 'hey', 6: 'hey', 11: 'ah', 14: 'hey' }, extra: 'squeaks',
-      chords: chordsOf(['D4 F#4 A4', 'A3 C#4 E4', 'B3 D4 F#4', 'G3 B3 D4', 'D4 F#4 A4', 'A3 C#4 E4', 'G3 B3 D4|A3 C#4 E4', 'D4 F#4 A4']),
-      bass: rootsOf(['D2', 'A2', 'B2', 'G2', 'D2', 'A2', 'G2|A2', 'D2']),
-      lead: ['F#5:0:1 A5:1:1 D6:2:2 A5:4:1 F#5:5:1 D5:6:2 E5:8:1 F#5:9:1 A5:10:2 F#5:12:2 E5:14:2',
-        'C#5:0:1 E5:1:1 A5:2:2 E5:4:1 C#5:5:1 A4:6:2 B4:8:1 C#5:9:1 E5:10:2 A5:12:4',
-        'B4:0:1 D5:1:1 F#5:2:2 D5:4:1 B4:5:1 F#4:6:2 A4:8:2 B4:10:2 D5:12:4',
-        'G4:0:1 B4:1:1 D5:2:2 G5:4:2 F#5:6:1 E5:7:1 D5:8:2 B4:10:2 A4:12:4',
-        'F#5:0:1 A5:1:1 D6:2:2 A5:4:1 F#5:5:1 D5:6:2 E5:8:1 F#5:9:1 A5:10:2 F#5:12:2 E5:14:2',
-        'C#5:0:1 E5:1:1 A5:2:2 C#6:4:2 B5:6:1 A5:7:1 E5:8:2 C#5:10:2 A4:12:4',
-        'B4:0:2 D5:2:2 G5:4:2 D5:6:2 C#5:8:2 E5:10:2 A5:12:4', 'D6:0:3 A5:3:1 F#5:4:2 D5:6:2'].map(notes) },
-    { name: 'LAST MINUTE WINNER', bpm: 145, chop: { 3: 'oh', 7: 'hey', 11: 'oh', 15: 'hey' }, extra: 'agogo', long: true,
-      chords: chordsOf(['E3 G3 B3', 'C4 E4 G4', 'G3 B3 D4', 'D4 F#4 A4', 'E3 G3 B3', 'C4 E4 G4', 'A3 C4 E4|B3 D#4 F#4', 'E3 G3 B3']),
-      bass: rootsOf(['E2', 'C2', 'G2', 'D2', 'E2', 'C2', 'A2|B2', 'E2']),
-      lead: ['B5:0:3 G5:3:1 E5:4:2 B4:6:2 E5:8:2 G5:10:2 F#5:12:2 E5:14:2', 'E5:0:3 C5:3:1 G4:4:2 C5:6:2 E5:8:2 G5:10:2 E5:12:4',
-        'D5:0:3 B4:3:1 G4:4:2 B4:6:2 D5:8:2 G5:10:2 B5:12:4', 'A5:0:3 F#5:3:1 D5:4:2 A4:6:2 D5:8:2 F#5:10:2 A5:12:2 F#5:14:2',
-        'E6:0:3 B5:3:1 G5:4:2 E5:6:2 G5:8:2 B5:10:2 A5:12:2 G5:14:2', 'G5:0:3 E5:3:1 C5:4:2 E5:6:2 G5:8:2 C6:10:2 B5:12:4',
-        'A5:0:2 C6:2:2 E6:4:2 C6:6:2 B5:8:2 D#6:10:2 F#6:12:2 B5:14:2', 'E6:0:3 B5:3:1 G5:4:2 E5:6:2'].map(notes) },
+    { name: 'BRAZIL BOUNCE', bpm: 140, chords: THEME.chords, bass: THEME.bass, lead: THEME.lead, chop: { 2: 'hey', 7: 'ah', 11: 'oh', 14: 'hey' } },
+    { name: 'COPACABANA NIGHTS', bpm: 128, style: 'baile', gain: 0.5, // bossa changes round the circle of fifths; the 808 plays the roots as written
+      chords: chordsOf(['A3 C4 E4 G4', 'D3 F3 A3 C4', 'G3 B3 D4 F4', 'C4 E4 G4 B4', 'F3 A3 C4 E4', 'B3 D4 F4 A4', 'E3 G#3 B3 D4', 'A3 C4 E4 G4']),
+      bass: rootsOf(['A1', 'D2', 'G1', 'C2', 'F1', 'B1', 'E1', 'A1']),
+      lead: ['E5:0:6 D5:6:2 C5:8:4 A4:12:4', 'F5:0:6 E5:6:2 D5:8:8', 'B4:0:4 D5:4:4 F5:8:4 G5:12:4', 'E5:0:10 D5:10:2 C5:12:4',
+        'A5:0:6 G5:6:2 F5:8:4 E5:12:4', 'D5:0:6 F5:6:2 A5:8:8', 'G#5:0:4 F5:4:4 E5:8:4 D5:12:4', 'C5:0:4 A4:4:12'].map(notes) },
+    { name: 'TOP BINS', bpm: 140, style: 'bounce', // the melody is the bell arpeggio over the chords, plus a hook every 4 bars
+      chords: chordsOf(['B3 D4 F#4', 'G3 B3 D4', 'D4 F#4 A4', 'A3 C#4 E4', 'B3 D4 F#4', 'G3 B3 D4', 'E3 G3 B3|F#3 A#3 C#4', 'B3 D4 F#4']),
+      bass: rootsOf(['B1', 'G1', 'D2', 'A1', 'B1', 'G1', 'E1|F#1', 'B1']),
+      hook: { 3: notes('F#6:12:1 E6:13:1 D6:14:2'), 7: notes('B5:12:1 C#6:13:1 D6:14:1 F#6:15:1') } },
+    { name: 'LAST MINUTE WINNER', bpm: 152, style: 'anthem', gain: 0.6,
+      chords: chordsOf(['E3 G3 B3', 'C3 E3 G3', 'G3 B3 D4', 'D3 F#3 A3', 'E3 G3 B3', 'C3 E3 G3', 'A3 C4 E4|B3 D#4 F#4', 'E3 G3 B3']),
+      bass: rootsOf(['E1', 'C2', 'G1', 'D2', 'E1', 'C2', 'A1|B1', 'E1']),
+      lead: ['E5:0:4 G5:4:4 B5:8:6 A5:14:2', 'G5:0:8 E5:8:4 D5:12:4', 'D5:0:4 G5:4:4 B5:8:8', 'A5:0:6 F#5:6:2 D5:8:8',
+        'E6:0:4 D6:4:4 B5:8:6 G5:14:2', 'C6:0:8 B5:8:4 G5:12:4', 'A5:0:4 C6:4:4 B5:8:4 D#6:12:4', 'E6:0:12'].map(notes) },
   ];
   const JC = { kick: [0, 4, 8, 10, 12], fill: [0, 3, 6, 8, 10, 12, 14] };
   const VOWEL = { hey: [530, 1840], ah: [730, 1090], oh: [570, 840] };
@@ -1188,29 +1178,120 @@
     VOWEL[v].forEach((f) => { const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 6; src.connect(bp).connect(g); });
     g.connect(o); src.start(t); src.stop(t + 0.15);
   }
+  function voice(c, o, type, f, t, dur, vol, from, lp, cents) { // a held note (osc() decays): optional slide in, lowpass, detune
+    const v = c.createOscillator(), g = c.createGain(); v.type = type; v.detune.value = cents || 0;
+    v.frequency.setValueAtTime(from || f, t); if (from) v.frequency.exponentialRampToValueAtTime(f, t + Math.min(0.08, dur / 2));
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.012); g.gain.setValueAtTime(vol, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    let n = v; if (lp) { const fl = c.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = lp; n = v.connect(fl); }
+    n.connect(g).connect(o); v.start(t); v.stop(t + dur + 0.02); return v;
+  }
+  function flute(c, o, m, t, dur, vol) { // pan flute: sine with vibrato that blooms, a breathy chiff on the attack
+    const v = voice(c, o, 'sine', HZ(m), t, dur, vol), l = c.createOscillator(), lg = c.createGain();
+    l.frequency.value = 5.5; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(HZ(m) * 0.012, t + Math.min(0.35, dur)); l.connect(lg).connect(v.frequency); l.start(t); l.stop(t + dur + 0.02);
+    voice(c, o, 'triangle', HZ(m + 12), t, dur, vol * 0.12); hiss(c, o, t, 0.07, vol * 0.6, 'bandpass', HZ(m) * 2, 2);
+  }
+  const bell = (c, o, m, t, dur, vol) => { osc(c, o, 'sine', HZ(m), t, dur, vol); osc(c, o, 'sine', HZ(m + 24), t, dur * 0.3, vol * 0.35); };
+  const supersaw = (c, o, m, t, dur, vol, from) => [-14, 0, 14].forEach((k) => voice(c, o, 'sawtooth', HZ(m), t, dur, vol, from ? HZ(from) : 0, 3200, k));
+  const tom = (c, o, t, f, vol) => { osc(c, o, 'sine', f, t, 0.2, vol, f * 0.55); hiss(c, o, t, 0.03, vol * 0.2, 'bandpass', f * 4, 2); };
+  const snap = (c, o, t, vol) => { hiss(c, o, t, 0.05, vol, 'bandpass', 2500, 3); osc(c, o, 'triangle', 1700, t, 0.02, vol * 0.25); };
+  const clap = (c, o, t, vol) => [0, 0.008, 0.017].forEach((k) => hiss(c, o, t + k, 0.09, vol, 'bandpass', 1500, 1.4));
+  const KICK = (c, o, t, vol) => osc(c, o, 'sine', 160, t, 0.16, vol || 0.55, 45);
+  const has = (list, st) => list.indexOf(st) >= 0;
+  const JSTYLE = {
+    baile(c, o, T, J, t) { // COPACABANA NIGHTS: laid-back tamborzão, pan flute, gliding 808
+      const { bar, st, d16, ch, bs, sec } = J;
+      if (J.hot) {
+        if (has([0, 3, 6, 10], st)) KICK(c, o, t, 0.5);
+        if (has([0, 6, 10], st)) voice(c, o, 'sine', HZ(bs), t, d16 * (st === 0 ? 5.5 : 3.5), 0.32, st === 10 ? HZ(bs + 7) : 0); // 808 that slides down on the last hit
+        if (st === 7 || st === 14) tom(c, o, t, 200, 0.3); if (st === 11 || (st === 15 && bar % 2)) tom(c, o, t, 130, 0.32);
+      }
+      if (sec === 'drop' || sec === 'fill') {
+        for (const [at, m, len] of T.lead[bar]) if (at === st) flute(c, o, m, t, len * d16 * 0.95, 0.055);
+        if (has([3, 6, 11], st)) ch.forEach((m, i) => osc(c, o, 'triangle', HZ(m + 12), t + i * 0.012, d16 * 1.4, 0.011)); // guitar plucks, strummed
+        if (st === 8 && bar % 2 === 0) chop(c, o, t, ch[0] + 12, 'oh', 0.06);
+        if (st === 14 && bar % 2 === 1) DRUM.cuica(c, o, t, 380, 760, 0.22);
+        if (sec === 'fill' && st >= 12) tom(c, o, t, 260 - (st - 12) * 40, 0.3);
+      }
+      if (J.calm || sec === 'outro') {
+        if (st === 0) ch.forEach((m) => voice(c, o, 'triangle', HZ(m + 12), t, d16 * 15, 0.014)); // pad
+        if (sec === 'break') for (const [at, m, len] of T.lead[bar]) if (at === st) flute(c, o, m, t, len * d16 * 0.95, 0.04);
+        if (sec === 'build' && (st === 0 || st === 10)) tom(c, o, t, 130, 0.22);
+        if (sec === 'roll' && st >= 8) tom(c, o, t, 120 + (st - 8) * 25, 0.2 + (st - 8) * 0.02);
+      }
+      if (sec !== 'break' && (st === 4 || st === 12)) snap(c, o, t, 0.14);
+      hiss(c, o, t, 0.03, st % 2 ? 0.03 : 0.012, 'highpass', 7000); // shaker, pushed on the offbeats
+    },
+    bounce(c, o, T, J, t) { // TOP BINS: swung, stuttering kicks, bell arpeggios, offbeat pluck bass
+      const { bar, st, d16, ch, bs, sec } = J; if (st % 2) t += d16 * 0.22; // swing
+      const tones = ch.concat(ch.map((m) => m + 12)), hook = T.hook[bar] || [], hooked = hook.some((n) => st >= n[0]);
+      if (J.hot) {
+        if (has(sec === 'fill' ? [0, 4, 8, 10, 11, 12, 13, 14, 15] : [0, 6, 8, 9, 12], st)) KICK(c, o, t);
+        if (sec !== 'fill' && bar % 4 === 3 && st === 14) KICK(c, o, t + d16 / 2, 0.4); // ratchet
+        if (has([2, 6, 10, 14], st)) { osc(c, o, 'square', HZ(bs + 12), t, d16 * 1.1, 0.045); osc(c, o, 'sine', HZ(bs), t, d16 * 1.6, 0.25); }
+      }
+      if (sec === 'drop' || sec === 'fill') {
+        if (!hooked) bell(c, o, tones[[0, 2, 4, 5, 3, 1, 2, 4][st % 8]] + 12, t, d16 * 1.8, 0.03);
+        for (const [at, m, len] of hook) if (at === st) bell(c, o, m, t, len * d16 * 1.5, 0.05);
+        if (has([3, 11], st)) ch.forEach((m) => osc(c, o, 'square', HZ(m + 12), t, d16 * 0.7, 0.008));
+        if (bar % 4 === 3 ? st >= 12 && st <= 14 : st === 6 && bar % 2 === 0) chop(c, o, t, ch[0] + 12 + (st > 12 ? (st - 12) * 2 : 0), 'hey', 0.08);
+      }
+      if (J.calm) {
+        if (st % 2 === 0) bell(c, o, tones[[0, 2, 4, 5, 3, 1, 2, 4][st % 8]] + 12, t, d16 * 2, sec === 'break' ? 0.026 : 0.016);
+        if (sec === 'break') { for (const [at, m, len] of hook) if (at === st) bell(c, o, m, t, len * d16 * 1.5, 0.035); if (st === 0 || st === 8) osc(c, o, 'square', HZ(bs + 12), t, d16 * 1.5, 0.035); }
+        if (sec === 'roll' && st >= 8) chop(c, o, t, ch[0] + 12 + (st - 8), 'hey', 0.05 + (st - 8) * 0.005);
+      }
+      if (sec !== 'break' && (st === 4 || st === 12)) { snap(c, o, t, 0.12); if (st === 12) clap(c, o, t, 0.07); }
+      if (sec !== 'break' || st % 4 === 2) hiss(c, o, t, st % 4 === 2 ? 0.1 : 0.02, st % 4 === 2 ? 0.02 : 0.03, 'highpass', st % 4 === 2 ? 6000 : 9000); // open hat on the bass
+    },
+    anthem(c, o, T, J, t) { // LAST MINUTE WINNER: fast, rolling kicks, supersaw siren lead, gated chords
+      const { bar, st, d16, ch, bs, sec } = J;
+      if (J.hot) {
+        if (has(sec === 'fill' ? [0, 4, 8, 9, 10, 11, 12, 13, 14, 15] : [0, 4, 8, 11, 14], st)) KICK(c, o, t);
+        if (st === 0 && bar % 4 === 0) hiss(c, o, t, 1.4, 0.06, 'highpass', 4500); // crash
+        if (st % 2 === 0) voice(c, o, 'square', HZ(bs + 12 + (st % 4 === 2 ? 12 : 0)), t, d16 * 1.8, 0.03, st % 4 === 2 ? HZ(bs + 12) : 0, 900); // octave-jumping bass that slides up
+        if (st === 0 || st === 8) voice(c, o, 'sine', HZ(bs), t, d16 * 6, 0.25);
+      }
+      if (sec === 'drop' || sec === 'fill') {
+        for (const [at, m, len] of T.lead[bar]) if (at === st) { supersaw(c, o, m, t, len * d16 * 0.95, 0.014, T.prev); T.prev = m; }
+        if ([1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1][st]) ch.forEach((m) => voice(c, o, 'sawtooth', HZ(m + 12), t, d16 * 0.6, 0.007, 0, 2400)); // trance gate
+        if (sec === 'fill' && st === 12) chop(c, o, t, ch[0] + 12, 'oh', 0.08);
+      }
+      if (J.calm) {
+        if (st === 0) ch.forEach((m) => supersaw(c, o, m + 12, t, d16 * 16, 0.004));
+        if (sec === 'break') { for (const [at, m, len] of T.lead[bar]) if (at === st) voice(c, o, 'sawtooth', HZ(m), t, len * d16 * 0.95, 0.012, 0, 1400); if (st === 0 || st === 3) KICK(c, o, t, 0.3); } // heartbeat
+        if (sec === 'build' && (st === 0 || st === 8)) osc(c, o, 'sawtooth', st ? 900 : 380, t, d16 * 8, 0.012, st ? 380 : 900); // air-raid siren
+        if (sec === 'roll') { osc(c, o, 'sawtooth', 200 + st * 100, t, d16, 0.01 + st * 0.0008); hiss(c, o, t, 0.05, 0.03 + st * 0.006, 'bandpass', 1900, 1.5); if (st >= 12) hiss(c, o, t + d16 / 2, 0.05, 0.1, 'bandpass', 1900, 1.5); }
+      }
+      if (sec !== 'break' && (st === 4 || st === 12)) { clap(c, o, t, 0.12); osc(c, o, 'triangle', 200, t, 0.1, 0.12, 120); }
+      if (sec !== 'break' && st % 2) hiss(c, o, t, st % 4 === 3 ? 0.08 : 0.025, 0.03, 'highpass', 7500);
+    },
+  };
   const loopSection = (bar) => (bar % 8 === 0 ? 'build' : bar % 8 === 1 ? 'roll' : bar % 4 === 3 ? 'fill' : 'drop'); // the in-game 8-bar loop
   function jerseyStep(c, o, T, gs, t, sec) {
     const bar = Math.floor(gs / 16) % 8, st = gs % 16, d16 = 60 / T.bpm / 4, half = st < 8 ? 0 : 1;
     sec = sec || loopSection(Math.floor(gs / 16));
     const ch = T.chords[bar][Math.min(half, T.chords[bar].length - 1)], bs = T.bass[bar][Math.min(half, T.bass[bar].length - 1)];
     const hot = sec === 'drop' || sec === 'fill' || sec === 'outro', calm = sec === 'build' || sec === 'roll' || sec === 'break';
+    if (T.style) { // gain: matches each track's loudness to BRAZIL BOUNCE
+      const g = c.createGain(); g.gain.value = T.gain || 1; g.connect(o);
+      return JSTYLE[T.style](c, g, T, { bar, st, d16, ch, bs, sec, hot, calm }, t);
+    }
     if (hot) { // kick bounce + 808 sub
-      if ((sec === 'fill' ? JC.fill : JC.kick).indexOf(st) >= 0) { osc(c, o, 'sine', 160, t, 0.16, 0.55, 45); osc(c, o, 'triangle', HZ(bs - 12), t, st === 0 || st === 8 ? d16 * 3 : d16 * 1.5, 0.22); }
+      if ((sec === 'fill' ? JC.fill : JC.kick).indexOf(st) >= 0) { KICK(c, o, t); osc(c, o, 'triangle', HZ(bs - 12), t, st === 0 || st === 8 ? d16 * 3 : d16 * 1.5, 0.22); }
     }
     if (sec === 'drop' || sec === 'fill') {
       if (st % 4 === 2) ch.forEach((m) => osc(c, o, 'sawtooth', HZ(m), t, d16 * 1.6, 0.012)); // pumped stabs between the kicks
-      for (const [at, m, len] of T.lead[bar]) if (at === st) osc(c, o, 'square', HZ(m + 12), t, (T.long ? len : Math.min(len, 2)) * d16 * (T.long ? 0.9 : 0.55), T.long ? 0.026 : 0.03);
+      for (const [at, m, len] of T.lead[bar]) if (at === st) osc(c, o, 'square', HZ(m + 12), t, Math.min(len, 2) * d16 * 0.55, 0.03);
       if (st in T.chop) chop(c, o, t, ch[0] + 12, T.chop[st], 0.08);
-      if ((st === 6 || st === 15) && (bar % 2 === 1 || T.extra === 'squeaks')) osc(c, o, 'sine', 1900, t, 0.07, 0.05, 2500); // bed squeak
-      if (T.extra === 'agogo' && (st === 3 || st === 11) && bar % 2 === 0) DRUM.agogo(c, o, t, st === 3);
-      if (T.extra === 'cuica' && st === 14 && bar % 2 === 1) DRUM.cuica(c, o, t, 380, 760, 0.22);
+      if ((st === 6 || st === 15) && bar % 2 === 1) osc(c, o, 'sine', 1900, t, 0.07, 0.05, 2500); // bed squeak
+      if ((st === 3 || st === 11) && bar % 2 === 0) DRUM.agogo(c, o, t, st === 3);
     }
     if (calm) {
       if (st % 8 === 0) ch.forEach((m) => osc(c, o, 'triangle', HZ(m + 12), t, d16 * 7, 0.025)); // held chords
       if (st === 7) chop(c, o, t, ch[0] + 12, 'ah', 0.05);
       if (sec === 'break') for (const [at, m, len] of T.lead[bar]) if (at === st) osc(c, o, 'triangle', HZ(m + 12), t, len * d16, 0.04); // the hook, soft
     }
-    if (sec !== 'break' && (st === 4 || st === 12)) [0, 0.008, 0.017].forEach((k) => hiss(c, o, t + k, 0.09, 0.12, 'bandpass', 1500, 1.4)); // clap
+    if (sec !== 'break' && (st === 4 || st === 12)) clap(c, o, t, 0.12);
     if (st % 2 === 0 && (sec !== 'break' || st % 4 === 0)) hiss(c, o, t, 0.025, 0.035, 'highpass', 8000); // hats
     if (sec === 'roll' && st >= 8) hiss(c, o, t, 0.05, 0.025 + (st - 8) * 0.012, 'bandpass', 1900, 1.5); // snare roll into the drop
   }
