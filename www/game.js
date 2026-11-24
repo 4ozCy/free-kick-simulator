@@ -583,7 +583,8 @@
       if (Math.abs(Math.sqrt(gx * gx + d * d) - 9.15) < lwz) buf[o + px] = LINE;
     }
   }
-  // stand texture: 160 m wide x 15 m tall at 12 texels/m; frame 0 = seated crowd, 1-3 = cheering (bobbing + camera flashes)
+  // stand texture: 160 m wide x 15 m tall at 12 texels/m; frame 0 = seated crowd, 1-3 = cheering (bobbing + camera flashes),
+  // 4-5 = idle shuffle (a few fans up at a time), swapped a couple of times a second so the stand never looks frozen
   const TPM = 12, TEX_W = 160 * TPM, TEX_H = STAND_TOP * TPM;
   function standPx(sx, sy, f) {
     if (sy < 0.9) { // advertising boards with blocky pseudo-lettering
@@ -600,8 +601,9 @@
     if (row % 9 === 8) return AISLE;
     const col = Math.floor((sx + 80) / 0.5), h = hash(col, row), fx = (sx + 80) / 0.5 - col;
     let fy = yy / 0.5 - row;
-    if (f && h & 3) fy += 0.45 * Math.max(0, Math.sin(f * 2.1 + (h & 31)));
-    if (f && (h & 511) === ((f * 167) & 511)) return FLASH;
+    if (f >= 4) { if (((h >>> 3) & 7) === f - 4 || ((h >>> 3) & 7) === f - 2) fy += 0.35; } // idle shuffle: a few fans up at a time
+    else if (f && h & 3) fy += 0.45 * Math.max(0, Math.sin(f * 2.1 + (h & 31)));
+    if (f && f < 4 && (h & 511) === ((f * 167) & 511)) return FLASH;
     if (fy > 0.15 && fy < 0.6 && fx > 0.12 && fx < 0.88) return CROWD[(h >>> 4) & 7];
     if (fy >= 0.6 && fy < 0.85 && fx > 0.3 && fx < 0.7) return SKINC[(h >>> 8) & 3];
     return SEAT[row & 1];
@@ -612,7 +614,7 @@
   // cheering frames: a dozen rows per tick after launch, so baking never stalls a frame on slow phones
   let bakeT = null, bakeY = 0;
   setTimeout(function more() {
-    if (STAND.length > 3) return;
+    if (STAND.length > 5) return;
     if (!bakeT) bakeT = new Uint32Array(TEX_W * TEX_H);
     bakeRows(bakeT, STAND.length, bakeY, Math.min(TEX_H, bakeY + 12));
     bakeY += 12;
@@ -623,7 +625,7 @@
   for (let i = 0; i < W * H; i++) SKYBUF[i] = hash(i % W, (i / W) | 0) % 397 === 0 && i < W * 150 ? STAR : SKY[(i / W) | 0];
   function renderBG() {
     const f = cam.f, r = cam.r, u = cam.u, iF = 1 / cam.F, cx = cam.cx, cy = cam.cy, X = cam.x, Y = cam.y, Z = cam.z;
-    const tex = STAND[excite > 0.05 ? Math.min(STAND.length - 1, 1 + (Math.floor(tnow * 8) % 3)) : 0];
+    const tex = STAND[excite > 0.05 ? Math.min(3, STAND.length - 1, 1 + (Math.floor(tnow * 8) % 3)) : idleTex];
     for (let py = 0, row = 0; py < H; py++, row += W) {
       const b = (py - cy) * iF, ry = f[1] - b * u[1];
       const rx0 = f[0] - b * u[0] - cx * iF * r[0], rz0 = f[2] - b * u[2] - cx * iF * r[2], drx = r[0] * iF, drz = r[2] * iF;
@@ -1017,6 +1019,21 @@
       g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.1, t + 0.02); g.gain.setValueAtTime(0.1, t + 0.38); g.gain.linearRampToValueAtTime(0, t + 0.46);
       o.connect(g).connect(master); o.start(t); lfo.start(t); o.stop(t + 0.5); lfo.stop(t + 0.5);
     },
+    applause() { for (let i = 0; i < 34; i++) burst(0.035, 0.12 + Math.random() * 0.1, 'highpass', 1800 + Math.random() * 1500, 0.7, Math.random() * 1.6); },
+    gasp() { burst(0.5, 0.35, 'bandpass', 1300, 1.2, 0, 0.04); burst(0.9, 0.2, 'bandpass', 600, 2, 0.15, 0.1); }, // the whole stand breathes in
+    groan() { burst(1.1, 0.22, 'lowpass', 420, 1, 0, 0.12); tone('sawtooth', 190, 120, 0.9, 0.025); },
+    clapChant() { // clap clap, clap-clap-clap, with a drum on the beat; twice
+      for (const o of [0, 2.2]) [0, 0.5, 1.0, 1.25, 1.5].forEach((d, i) => {
+        for (let k = 0; k < 6; k++) burst(0.035, 0.1, 'highpass', 2000 + k * 300, 0.8, o + d + k * 0.012);
+        if (i === 0 || i === 2) tone('sine', 95, 45, 0.18, 0.35, o + d);
+      });
+    },
+    ohChant() { // a few thousand voices on 'oh-oh-oh-ohhh': formant-filtered noise with a hum underneath
+      [[0, 0.4], [0.5, 0.4], [1.0, 0.4], [1.5, 1.1]].forEach(([d, len]) => {
+        burst(len, 0.2, 'bandpass', 520, 5, d, 0.08); burst(len, 0.12, 'bandpass', 880, 5, d, 0.08);
+        tone('sawtooth', d < 1.5 ? 196 : 247, d < 1.5 ? 196 : 247, len, 0.012, d);
+      });
+    },
     kick() { tone('sine', 180, 40, 0.2, 0.9); tone('square', 110, 50, 0.07, 0.25); burst(0.07, 0.5, 'lowpass', 1800); },
     clank() { [620, 1480, 2330, 3410].forEach((f, i) => tone(i % 2 ? 'square' : 'triangle', f, f * 0.97, 0.7 - i * 0.12, 0.1)); burst(0.05, 0.3, 'highpass', 3000); },
     cheer() {
@@ -1071,6 +1088,7 @@
 
   // ------------------------------------------------------------------ game state
   let state = 'title', world, level = 0, lives = 3, score = 0, best = 0;
+  let wallGroan = false, chantT = 6; // crowd: one groan per wall hit; seconds to the next chant
   let levelT = 0, stateT = 0, tnow = 0, excite = 0, acc = 0, whistled = true, msg = null, hint = null, ptr = null;
   const shot = { style: 1, aim: 0, power: 0.6, u: STYLES[1].u, v: STYLES[1].v, mega: false, insane: false, chaos: false };
   let spot = null, seed = 1, moving = false; // player-chosen kick spot for the current level
@@ -1276,9 +1294,9 @@
   function handle(evs) {
     for (const e of evs) {
       const b = world.ball;
-      if (e === 'post') { buzz([25, 30, 25]); sfx('clank'); shake = 5; squash = 0.09; puff(b.x, b.y, b.z, 14, SPARK, 3, 2); }
-      else if (e === 'wall') { buzz(18); sfx('thud'); squash = 0.09; puff(b.x, b.y, b.z, 8, ['#d42a34', '#ffffff'], 1.5, 1.5); }
-      else if (e === 'save') { buzz(30); sfx('save'); squash = 0.09; puff(b.x, b.y, b.z, 12, ['#ffffff', '#8ad0ff', '#ffffff'], 2.5, 1.5); }
+      if (e === 'post') { buzz([25, 30, 25]); sfx('clank'); sfx('gasp'); shake = 5; squash = 0.09; puff(b.x, b.y, b.z, 14, SPARK, 3, 2); }
+      else if (e === 'wall') { buzz(18); sfx('thud'); if (!wallGroan) { wallGroan = true; sfx('groan'); } squash = 0.09; puff(b.x, b.y, b.z, 8, ['#d42a34', '#ffffff'], 1.5, 1.5); }
+      else if (e === 'save') { buzz(30); sfx('save'); sfx('applause'); squash = 0.09; puff(b.x, b.y, b.z, 12, ['#ffffff', '#8ad0ff', '#ffffff'], 2.5, 1.5); }
       else if (e === 'bounce') { sfx('bounce'); squash = 0.09; puff(b.x, 0.02, b.z, 6, DUST, 0.8, 1); }
       else if (e === 'chaos') { fxHit = { x: b.x, y: b.y, z: b.z, t: world.ft }; sfx('thud'); squash = 0.09; puff(b.x, b.y, b.z, 10, FX[world.chaos.name] && FX[world.chaos.name].dirt ? DUST : ['#ffffff', '#ffe060'], 1.8, 1.4); }
       else if (e === 'net') { sfx('net'); netHit(b.x, b.y, 9); shake = Math.max(shake, 2); puff(b.x, b.y, b.z, 8, ['#ffffff', '#d8d8e8'], 1.2, 0.5); }
@@ -1662,12 +1680,61 @@
   }
 
   // ------------------------------------------------------------------ frame
+  // the stand comes alive: a sprinkle of fans standing up, waving and twirling scarves, a few big flags and phone flashes.
+  // Drawn over the baked stand each frame (a few dozen rects), so the background never needs re-rendering for it.
+  const FAN_SHIRT = ['#d42a34', '#f2f2f2', '#2850c8', '#ffd020', '#30a050', '#ff8020', '#202028', '#a040c0'];
+  const FAN_SKIN = ['#f0c8a0', '#c08050', '#704020', '#e0b080'];
+  const FANS = [], FLAGS = [];
+  for (let i = 0; i < 60; i++) {
+    const h = hash(i, 77);
+    FANS.push({ x: -36 + (h % 7200) / 100, y: 1.9 + Math.floor((hash(i, 13) % 8)) * 0.5, kind: h & 3, ph: (h >>> 8) % 628 / 100,
+      shirt: FAN_SHIRT[(h >>> 4) & 7], skin: FAN_SKIN[(h >>> 12) & 3], scarf: FAN_SHIRT[(h >>> 16) & 7], keen: ((h >>> 20) & 255) / 255 });
+  }
+  [[-27, 2.2, '#d42a34', '#f2f2f2'], [-11, 2.8, '#2850c8', '#ffd020'], [8, 2.0, '#30a050', '#f2f2f2'], [21, 2.6, '#ffd020', '#202028'], [34, 2.3, '#ff8020', '#2850c8']]
+    .forEach(([x, y, a, c], i) => FLAGS.push({ x, y, a, c, ph: i * 1.7 }));
+  let flashes = [];
+  function drawFans() {
+    const live = state === 'runup' || state === 'flight' || (state === 'result' && world.result === 'goal'), act = excite > 0.3 ? 1 : live ? 0.6 : 0.22;
+    for (const f of FANS) {
+      if (f.keen > act) continue; // only the keen ones are up when nothing's happening
+      const p = proj(f.x, f.y, STAND_Z - 0.05);
+      if (!p || p[0] < -4 || p[0] > W + 4) continue;
+      const s = p[2], u = Math.max(1, Math.round(s * 0.26)), t = tnow * (live ? 9 : 4) + f.ph, up = Math.sin(t) > 0;
+      const x = Math.round(p[0]), y = Math.round(p[1] - (f.kind === 2 && up ? u : 0));
+      ctx.fillStyle = f.shirt; ctx.fillRect(x - u, y - u, 2 * u + 1, 2 * u); // body
+      ctx.fillStyle = f.skin; ctx.fillRect(x - Math.floor(u / 2), y - 2 * u, u + 1, u); // head
+      if (f.kind === 0 || (f.kind === 2 && live)) { // arms: up and down
+        ctx.fillRect(x - u - 1, y - (up ? 3 * u : u), 1, up ? 2 * u : u); ctx.fillRect(x + u + 1, y - (up ? 3 * u : u), 1, up ? 2 * u : u);
+      } else if (f.kind === 1) { // scarf held up, swinging
+        ctx.fillStyle = f.scarf; const sw = Math.round(Math.sin(t) * u * 1.5);
+        ctx.fillRect(x - u + sw, y - 3 * u, 2 * u + 1, Math.max(1, Math.round(u / 2)));
+      }
+    }
+    for (const g of FLAGS) {
+      const p = proj(g.x, g.y, STAND_Z - 0.06);
+      if (!p || p[0] < -20 || p[0] > W + 20) continue;
+      const s = p[2], x = Math.round(p[0]), y = Math.round(p[1]), pole = Math.round(s * 2.4), fw = Math.max(6, Math.round(s * 2)), fh = Math.max(4, Math.round(s * 1.2));
+      ctx.fillStyle = '#d0d0d0'; ctx.fillRect(x, y - pole, 1, pole);
+      for (let c = 0; c < fw; c++) { // cloth in vertical strips, a travelling wave along it
+        const dy = Math.round(Math.sin(tnow * (live ? 7 : 3.5) + g.ph - c * 0.6) * fh * 0.25 * (c / fw));
+        ctx.fillStyle = c < fw / 2 ? g.a : g.c; ctx.fillRect(x + 1 + c, y - pole + dy, 1, fh);
+      }
+    }
+    if (Math.random() < (live ? 0.5 : 0.03)) { const f = FANS[(Math.random() * FANS.length) | 0]; flashes.push({ x: f.x, y: f.y + 0.4, t: 0 }); } // phones out
+    flashes = flashes.filter((q) => (q.t += 1 / 60) < 0.12);
+    ctx.fillStyle = '#ffffff';
+    for (const q of flashes) { const p = proj(q.x, q.y, STAND_Z - 0.07); if (p) ctx.fillRect(Math.round(p[0]) - 1, Math.round(p[1]) - 1, 2, 2); }
+  }
+  let idleTex = 0;
   function render() {
+    const it = STAND.length > 5 ? [0, 4, 0, 5][Math.floor(tnow * 2.5) & 3] : 0; // the shuffle: ~3 background redraws a second
+    if (it !== idleTex) { idleTex = it; if (excite <= 0) bgDirty = true; }
     if (bgDirty || excite > 0) { renderBG(); drawNet(); bgDirty = false; }
     const sx = shake > 0.5 ? Math.round((Math.random() - 0.5) * 2 * shake) : 0, sy = shake > 0.5 ? Math.round((Math.random() - 0.5) * 2 * shake) : 0;
     if (sx || sy) { ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, W, H); }
     ctx.putImageData(img, sx, sy);
     ctx.save(); ctx.translate(sx, sy); // the world shakes, the HUD doesn't
+    drawFans();
     const b = world.ball, k = world.keeper;
 
     shadow(b.x, b.z, R * 1.2, Math.max(0.1, 0.4 - b.y * 0.05));
@@ -1952,6 +2019,7 @@
     else if (slowNow()) dt *= 0.3; // slow-mo: run-up, strike, flight and the first moment after, at 30%
     tnow += dt; levelT += dt; stateT += dt;
     excite = Math.max(0, excite - dt * 0.22);
+    if ((state === 'runup' || state === 'flight') && !replay) excite = Math.max(excite, 0.12); // on their feet for the kick
     if (msg) msg.t += dt;
     if (hint) hint.t += dt;
     if (state === 'aim' && levelT > 0.4 && !whistled) { whistled = true; sfx('whistle'); }
@@ -1962,7 +2030,7 @@
       }
       Sim.kick(world, replay ? replay.rec.shot : shot); state = 'flight';
       if (!replay && lastKick && world.chaos) lastKick.shot.chaosName = world.chaos.name;
-      stateT = 0; acc = 0; sfx('kick'); buzz(12); fxFired = false; fxHit = null;
+      stateT = 0; acc = 0; sfx('kick'); buzz(12); wallGroan = false; fxFired = false; fxHit = null;
       const fk = world.chaos && FX[world.chaos.name];
       if (fk && fk.atKick) {
         fxFired = true; sfx(fk.snd);
@@ -2016,7 +2084,11 @@
       const sp = fl ? Math.hypot(b.vx, b.vy, b.vz) : 0, spin = fl ? Math.min(1, Math.hypot(b.sx, b.sy, b.sz)) : 0;
       whoosh.g.gain.setTargetAtTime(fl ? clamp((sp - 4) / 30, 0, 1) * (0.05 + spin * 0.12 + (world.wob ? 0.08 : 0)) : 0, t, 0.05);
       whoosh.f.frequency.setTargetAtTime(400 + sp * 30 + (world.wob ? Math.sin(tnow * 40) * 250 : spin * 600), t, 0.03);
-      crowd.g.gain.setTargetAtTime(0.03 + excite * 0.12, t, 0.3);
+      const near = fl ? clamp(1 - Math.abs(b.z) / Math.max(8, world.L.dist), 0, 1) : 0; // the ball closing on goal
+      const breath = 1 + 0.35 * Math.sin(tnow * 0.37) + 0.2 * Math.sin(tnow * 0.93 + 1.7);
+      crowd.g.gain.setTargetAtTime(0.03 * breath + excite * 0.12 + near * near * 0.07, t, 0.25);
+      crowd.f.frequency.setTargetAtTime(700 + near * 450, t, 0.2);
+      if (state === 'aim' && !replay && (chantT -= dt) <= 0) { chantT = 9 + Math.random() * 8; sfx(Math.random() < 0.5 ? 'clapChant' : 'ohChant'); }
     }
   }
 
