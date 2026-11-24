@@ -458,7 +458,19 @@
   const rankOf = (xp) => { let r = 0; while (r + 1 < RANKS.length && xp >= RANKS[r + 1].xp) r++; return r; };
   const xpFor = (nStars, streak, dist, chaos) => (10 + 10 * nStars + 5 * Math.min(streak, 5) + Math.max(0, Math.round(dist - 18))) * (chaos ? 10 : 1); // CHAOS mode pays 10x
 
-  const Sim = { applyChaos, CHAOS, setGoal, goal: () => [HW, GH], KN, RANKS, rankOf, xpFor, stars, multiplier, missBy, STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview, speed: speedOf };
+  function bag(list, rng = Math.random) {
+    let q = [], last = null;
+    return () => {
+      if (!q.length) {
+        q = list.slice();
+        for (let i = q.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t = q[i]; q[i] = q[j]; q[j] = t; }
+        if (q.length > 1 && q[q.length - 1] === last) { const t = q[0]; q[0] = q[q.length - 1]; q[q.length - 1] = t; }
+      }
+      return (last = q.pop());
+    };
+  }
+
+  const Sim = { bag, applyChaos, CHAOS, setGoal, goal: () => [HW, GH], KN, RANKS, rankOf, xpFor, stars, multiplier, missBy, STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview, speed: speedOf };
   if (typeof module !== 'undefined' && module.exports) { module.exports = Sim; return; }
 
   // =================================================================== BROWSER
@@ -1145,6 +1157,58 @@
     if (rank() >= 5) { world.L.read = Math.max(0.1, world.L.read - 0.15); world.L.react += 0.05; } // MIND GAMES
     world.L.react += HEROES[hero].react || 0;
   }
+
+  // ------------------------------------------------------------------ ZOOMER FM: the co-commentator. Glazes goals, roasts misses.
+  // The pixel font has no apostrophes, so neither does he. {HERO} and {DIST} are filled in per shot.
+  const BANTER = {
+    goal: ['NAH THAT WAS DISGUSTING. IN A GOOD WAY.', 'THE KEEPER IS GOING TO THINK ABOUT THAT ONE IN THE SHOWER',
+      'BRO HAS AURA. INFINITE AURA.', 'CLIP IT. POST IT. FRAME IT. PUT IT IN A MUSEUM.', 'THATS SO TUFF IM LITERALLY SHAKING RN',
+      'NET COOKED, KEEPER COOKED, WALL COOKED. FULL BARBECUE.', 'MAIN CHARACTER BEHAVIOUR FR FR', 'YOU ATE AND LEFT NO CRUMBS. NOT ONE.',
+      'THE WALL JUMPED FOR NOTHING. RESPECT THE CARDIO THO', 'THIS IS WHY YOUR MUM SAYS YOU HAVE POTENTIAL',
+      'CERTIFIED BALLER MOMENT. NO NOTES. NO QUESTIONS.', 'THE KEEPER JUST GOT LEFT ON READ',
+      '{DIST} METRES?? {HERO} SAID DISTANCE IS A SOCIAL CONSTRUCT', '{HERO} IS NOT HUMAN. I NEED A BLOOD TEST.'],
+    topbins: ['TOP BINS?? THE SPIDER IN THAT CORNER IS HOMELESS NOW', 'PLACED IT WHERE THE KEEPER NEEDS A LADDER AND A PRAYER',
+      'ROOF OF THE NET. ROOF OF MY HEART.', 'BRO PICKED THE CORNER LIKE HE WAS ONLINE SHOPPING'],
+    postin: ['OFF THE POST AND IN. EVEN THE POST WANTED IT', 'RICOCHET RIZZ. THE WOODWORK IS ON YOUR SIDE', 'THE POST SAID GO ON THEN, BESTIE'],
+    knuckle: ['THAT BALL WAS DOING THE WORM IN MID AIR', 'THE KNUCKLEBALL HAD THE KEEPER DANCING TO THE WRONG SONG',
+      'IT WOBBLED LIKE MY WIFI AND STILL WENT IN'],
+    trivela: ['OUTSIDE OF THE BOOT?? SHOWING OFF ON PURPOSE', 'TRIVELA. BECAUSE NORMAL GOALS ARE FOR NPCS', 'THAT SWERVE HAD A PLOT TWIST IN ACT THREE'],
+    streak: ['ANOTHER ONE. THE KEEPER IS UPDATING HIS CV', 'BRO IS ON A HEATER. SOMEONE CALL THE FIRE BRIGADE',
+      'STREAK SO HOT THE GRASS IS TURNING BROWN', 'AT THIS POINT THE KEEPER IS JUST A SPECTATOR WITH GLOVES'],
+    chaos: ['THE CHAOS CHOSE YOU AND YOU SAID THANK YOU', 'SCRIPT WRITERS COULD NEVER', '10 PERCENT SKILL, 90 PERCENT NONSENSE. I RESPECT IT.',
+      'PHYSICS LEFT THE CHAT AND YOU STILL SCORED', 'THAT GOAL HAD SIDE QUESTS'],
+    cheat: ['1000 KM/H? THAT GOAL HAS AN ASTERISK AND A LAWYER', 'SCORED WITH CHEATS ON. STILL COUNTS IN YOUR HEAD THO', 'BRO DOWNLOADED THAT GOAL'],
+    save: ['THE KEEPER SAW THAT COMING MID NAP', 'YOU PASSED IT TO HIM. ARE YOU TWO DATING?', 'HE DID NOT EVEN BREAK A SWEAT. EMBARRASSING.',
+      'STRAIGHT AT THE KEEPER LIKE A DELIVERY DRIVER', 'HE IS COLLECTING YOUR SHOTS LIKE TRADING CARDS',
+      'THAT SAVE GOES ON HIS HIGHLIGHT REEL. YOU ARE THE B-ROLL'],
+    wall: ['YOU HIT THE WALL. THE WALL DID NOT EVEN FLINCH', 'BRO TRIED TO SHOOT THROUGH FOUR GROWN MEN', 'THE WALL SAID NOT TODAY, BESTIE',
+      'THAT WAS A PASS TO THE DEFENCE. WHOLESOME, HONESTLY.', 'SKILL ISSUE, BUT MAKE IT A BRICK',
+      '{HERO} REALLY LOOKED AT A WALL OF HUMANS AND WENT YEAH'],
+    post: ['THE POST IS THE ONLY ONE WHO TOUCHED IT. LOWKEY SAD', 'CLANG. THAT SOUND IS YOUR CONFIDENCE.', 'SO CLOSE YET SO METAL',
+      'THE WOODWORK HAS MORE TOUCHES THAN YOU TODAY'],
+    over: ['THAT BALL IS IN ORBIT. SPACE AGENCIES ARE CALLING', 'ROW Z SAYS THANKS FOR THE SOUVENIR', 'AIMED FOR THE MOON. MISSED THE MOON TOO.',
+      'THE CROSSBAR WAS NEVER IN DANGER. NEITHER WAS ANYONE.', 'THAT WENT SO HIGH IT NEEDS A PASSPORT'],
+    wide: ['WIDE. THE CORNER FLAG IS NERVOUS NOW', 'BRO SHOT AT A DIFFERENT GOAL IN A DIFFERENT STADIUM', 'THE NET IS RIGHT THERE. IT IS NOT HIDING.',
+      'THAT WAS A CROSS TO NOBODY', 'RESPECTFULLY... WHAT WAS THAT', 'FROM {DIST} METRES AND YOU MISSED THE WHOLE PLANET'],
+    close: ['INCHES. CRUEL, PAINFUL, CHARACTER BUILDING INCHES', 'SO CLOSE I FELT IT IN MY SOUL', 'NEARLY. NEARLY DOES NOT GO IN THE GROUP CHAT THO',
+      'THE NET FELT THE BREEZE AND GOT JEALOUS'],
+  };
+  const BAGS = {};
+  let talk = null; // { s: the line, t: seconds since the result }
+  function say(key) { // the next line for this moment, never the same one twice running
+    BAGS[key] = BAGS[key] || Sim.bag(BANTER[key]);
+    talk = { s: BAGS[key]().replace('{HERO}', HEROES[hero].name).replace('{DIST}', Math.round(world.L.dist)), t: 0 };
+  }
+  function drawTalk() { // types out under the result, above the replay buttons
+    if (!talk || state !== 'result' || replay || talk.t < 0.5) return;
+    const words = talk.s.slice(0, Math.floor((talk.t - 0.5) * 45)).split(' '), lines = [''];
+    for (const wd of words) { const cur = lines[lines.length - 1]; if ((cur + ' ' + wd).trim().length > 60) lines.push(wd); else lines[lines.length - 1] = (cur + ' ' + wd).trim(); }
+    const y = 246;
+    ctx.fillStyle = 'rgba(10,8,30,0.82)'; ctx.fillRect(4, y, W - 8, 13 + lines.length * 8);
+    ctx.fillStyle = '#ff60c0'; ctx.fillRect(4, y, 2, 13 + lines.length * 8);
+    text('ZOOMER FM', 10, y + 3, 1, '#ff60c0');
+    lines.forEach((l, i) => text(l, 10, y + 11 + i * 8, 1, '#ffffff'));
+  }
   const showMsg = (big, sub, col, dur = 2.6, sc = 5, st = -1, extra = '') => (msg = { t: 0, big, sub, col, dur, sc, st, extra });
   const sideName = () => (world.L.ang < -5 ? 'LEFT' : world.L.ang > 5 ? 'RIGHT' : 'CENTRE');
 
@@ -1177,6 +1241,7 @@
       const how = e.target ? 'TOP BINS! ' : e.post ? 'IN OFF THE POST! ' : st.knuckle ? 'KNUCKLEBALL! ' : st.late ? 'TRIVELA! ' : '';
       const today = new Date();
       Object.assign(lastKick, { pts: base, how: how.trim(), dist: Math.round(world.L.dist), d: today.getMonth() + 1 + '/' + today.getDate() });
+      say(cheatKick ? 'cheat' : world.chaos ? 'chaos' : streak >= 2 ? 'streak' : e.target ? 'topbins' : e.post ? 'postin' : st.knuckle ? 'knuckle' : st.late ? 'trivela' : 'goal');
       if (cheatKick) { // cheats score points but earn no stars, streak or best score
         score += base; runCheat = true;
         return showMsg('GOAL!', how + '+' + base, '#ffe040', 2.6, 5, -1, 'CHEATS ON - NO STARS');
@@ -1196,6 +1261,7 @@
     } else {
       sfx('ooh');
       const left = lives - 1, gap = Sim.missBy(world), lost = streak >= 2 ? 'STREAK OF ' + streak + ' LOST' : '';
+      say((r === 'wide' || r === 'over') && gap !== null && gap < 0.5 ? 'close' : BANTER[r] ? r : 'wide');
       streak = 0;
       const sub = left > 0 ? left + (left > 1 ? ' BALLS LEFT' : ' BALL LEFT') : 'NO BALLS LEFT';
       if ((r === 'wide' || r === 'over') && gap !== null && gap < 0.5) // near misses: tell them how near
@@ -1775,6 +1841,7 @@
       if (msg.extra) text(msg.extra, W / 2, ly, 1, '#60e0ff', 0.5);
     }
     const btn = (label, y, h, hot) => { bevel(50, y, 170, h, hot ? '#c82828' : '#2a3264', hot ? '#ff9090' : '#4a56a0', hot ? '#801010' : '#141834'); text(label, W / 2, y + (h - 5 * (h > 20 ? 2 : 1)) / 2, h > 20 ? 2 : 1, '#ffffff', 0.5); };
+    drawTalk();
     if (slowNow()) { text('SLOW-MO', W / 2, UI_Y - 44, 2, '#60e0ff', 0.5); text('TAP FOR FULL SPEED', W / 2, UI_Y - 30, 1, '#c8e8ff', 0.5); } // low down, out of the goal's way
     if (replay) { text('REPLAY', W / 2, 60, 2, Math.floor(tnow * 3) & 1 ? '#ff4040' : '#ffffff', 0.5); text('TAP TO SKIP', W / 2, 74, 1, '#c8e8ff', 0.5); }
     if (state === 'result' && !replay && world.result === 'goal' && lastKick) { // replay / save this goal
@@ -1863,6 +1930,7 @@
     tnow += dt; levelT += dt; stateT += dt;
     excite = Math.max(0, excite - dt * 0.22);
     if (msg) msg.t += dt;
+    if (talk) talk.t += dt;
     if (hint) hint.t += dt;
     if (state === 'aim' && levelT > 0.4 && !whistled) { whistled = true; sfx('whistle'); }
     if (state === 'runup' && stateT >= HEROES[hero].runT) {
