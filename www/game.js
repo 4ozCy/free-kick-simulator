@@ -1951,7 +1951,8 @@
     if (replay) dt *= slowmo ? 0.3 : 0.6; // replays: 60% speed, 30% in slow-mo
     else if (slowNow()) dt *= 0.3; // slow-mo: run-up, strike, flight and the first moment after, at 30%
     tnow += dt; levelT += dt; stateT += dt;
-    if (introDue && state === 'aim' && levelT > 0.9) { introDue = false; vo(callClip('intro'), 'after'); }
+    if (introDue && state === 'aim' && levelT > 0.9 && !clip) { introDue = false; vo(callClip('intro')); } // waits for the last chat to end
+    if (introDue && levelT > 6) introDue = false; // too late to set the scene
     excite = Math.max(0, excite - dt * 0.22);
     if (msg) msg.t += dt;
     if (cur) curT += dt;
