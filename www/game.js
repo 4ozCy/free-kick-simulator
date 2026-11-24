@@ -986,6 +986,7 @@
   function setupAudio(Ctor) {
     AC = new Ctor();
     master = AC.createGain(); master.gain.value = 0.6 * VOL[sound]; master.connect(AC.destination);
+    musBus = AC.createGain(); musBus.gain.value = 0.0001; musBus.connect(master);
     noiseBuf = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate);
     const d = noiseBuf.getChannelData(0);
     let v = 0;
@@ -1084,6 +1085,93 @@
     stars3() { [988, 1319, 1976].forEach((f, i) => tone('square', f, f, 0.14, 0.06, i * 0.25)); },
   };
   const sfx = (n) => { if (AC) SFX[n](); };
+  // ------------------------------------------------------------------ music: an original chiptune samba (Brazil summer, 2014 feel)
+  // Batucada (surdo, caixa, tamborim, agogo, ganza, apito), cavaquinho-style strums, a samba bass and a square-wave lead.
+  // All melodies are written for this game. Everything is synthesized, so there are no audio files and no licences.
+  const MIDI = (n) => { const m = /^([A-G])(#?)(\d)$/.exec(n); return 12 * (+m[3] + 1) + 'C D EF G A B'.indexOf(m[1]) + (m[2] ? 1 : 0); };
+  const HZ = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  const notes = (str) => str.split(' ').map((t) => { const q = t.split(':'); return [+q[1], MIDI(q[0]), +q[2]]; }); // 'D5:step:len'
+  const THEME = {
+    bpm: 104,
+    chords: ['G3 B3 D4', 'E3 G3 B3', 'A3 C4 E4', 'D3 F#3 C4', 'G3 B3 D4', 'E3 G#3 D4', 'A3 C4 E4|D3 F#3 C4', 'G3 B3 D4'].map((c) => c.split('|').map((h) => h.split(' ').map(MIDI))),
+    bass: ['G2', 'E2', 'A2', 'D2', 'G2', 'E2', 'A2|D2', 'G2'].map((b) => b.split('|').map(MIDI)),
+    lead: [
+      'D5:0:2 B4:2:1 D5:3:2 G5:6:2 F#5:8:1 E5:9:2 D5:11:3 B4:14:2',
+      'E5:0:2 G5:3:2 E5:6:1 D5:7:2 B4:10:2 G4:12:4',
+      'A4:0:1 C5:1:2 E5:3:2 A5:6:2 G5:8:1 E5:9:2 C5:11:2 A4:13:3',
+      'F#5:0:2 E5:2:1 D5:3:2 C5:6:2 A4:8:2 F#4:10:2 A4:12:2 C5:14:2',
+      'B4:0:2 D5:2:1 G5:3:3 B5:6:2 A5:8:1 G5:9:2 D5:11:2 B4:13:3',
+      'G#4:0:2 B4:2:1 E5:3:2 G#5:6:2 F#5:8:1 E5:9:2 D5:11:2 B4:13:3',
+      'C5:0:2 E5:2:1 A5:3:3 G5:6:2 F#5:8:2 A5:10:2 D5:12:4',
+      'G5:0:3 D5:3:1 B4:4:2 G4:6:2',
+    ].map(notes),
+  };
+  const AGOGO = { 0: 1, 3: 0, 6: 1, 8: 0, 11: 1, 14: 0 }, TAMB = [0, 3, 6, 8, 11, 14], STRUM = [2, 5, 7, 10, 13, 15];
+  function noiseOf(ctx) { // a noise buffer per audio context (the live one, or an offline one for previews)
+    if (!ctx.__rfkNoise) { const b = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; ctx.__rfkNoise = b; }
+    return ctx.__rfkNoise;
+  }
+  function osc(ctx, out, type, f0, t, dur, vol, f1) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t); if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(out); o.start(t); o.stop(t + dur + 0.02);
+  }
+  function hiss(ctx, out, t, dur, vol, type, freq, q) {
+    const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    s.buffer = noiseOf(ctx); f.type = type; f.frequency.value = freq; f.Q.value = q || 1;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f).connect(g).connect(out); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+  }
+  const DRUM = {
+    surdo: (c, o, t, hard) => osc(c, o, 'sine', hard ? 82 : 70, t, hard ? 0.42 : 0.22, hard ? 0.5 : 0.22, 44),
+    caixa: (c, o, t, acc) => hiss(c, o, t, 0.045, acc ? 0.07 : 0.03, 'highpass', 2600),
+    tamborim: (c, o, t) => { hiss(c, o, t, 0.03, 0.09, 'bandpass', 3400, 3); osc(c, o, 'square', 1250, t, 0.025, 0.02); },
+    agogo: (c, o, t, high) => { osc(c, o, 'triangle', high ? 1046 : 784, t, 0.16, 0.07); osc(c, o, 'square', high ? 2093 : 1568, t, 0.05, 0.012); },
+    ganza: (c, o, t) => hiss(c, o, t, 0.03, 0.012, 'highpass', 6000),
+    apito: (c, o, t, len) => { const v = c.createOscillator(), l = c.createOscillator(), lg = c.createGain(), g = c.createGain(); v.type = 'square'; v.frequency.value = 2650; l.frequency.value = 32; lg.gain.value = 160; l.connect(lg).connect(v.frequency); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.035, t + 0.01); g.gain.setValueAtTime(0.035, t + len - 0.02); g.gain.linearRampToValueAtTime(0, t + len); v.connect(g).connect(o); v.start(t); l.start(t); v.stop(t + len + 0.02); l.stop(t + len + 0.02); },
+    cuica: (c, o, t, f0, f1, len) => osc(c, o, 'sine', f0, t, len, 0.12, f1),
+  };
+  function themeStep(c, o, gs, t) { // one 16th of the samba theme
+    const S = THEME, bar = Math.floor(gs / 16) % S.lead.length, st = gs % 16, d16 = 60 / S.bpm / 4, half = st < 8 ? 0 : 1;
+    for (const [at, m, len] of S.lead[bar]) if (at === st) { osc(c, o, 'square', HZ(m), t, len * d16 * 0.95, 0.045); osc(c, o, 'triangle', HZ(m + 12), t, len * d16 * 0.6, 0.012); }
+    const ch = S.chords[bar][Math.min(half, S.chords[bar].length - 1)], bs = S.bass[bar][Math.min(half, S.bass[bar].length - 1)];
+    if (STRUM.indexOf(st) >= 0) ch.forEach((m, i) => osc(c, o, 'square', HZ(m + 12), t + i * 0.006, d16 * 0.7, 0.012)); // cavaquinho strum, offbeat
+    if (st === 0 || st === 6 || st === 14) osc(c, o, 'triangle', HZ(bs), t, d16 * (st === 0 ? 3 : 1.6), 0.16);
+    if (st === 8) osc(c, o, 'triangle', HZ(bs + 7), t, d16 * 3, 0.14);
+    if (st % 4 === 0) DRUM.surdo(c, o, t, st === 4 || st === 12);
+    DRUM.caixa(c, o, t, st % 4 === 3); DRUM.ganza(c, o, t + d16 * 0.5);
+    if (TAMB.indexOf(st) >= 0) DRUM.tamborim(c, o, t);
+    if (st in AGOGO) DRUM.agogo(c, o, t, AGOGO[st]);
+    if (bar === 7 && st === 10) DRUM.apito(c, o, t, d16 * 1.6); // the samba whistle calls the band round
+    if (bar === 7 && st === 13) DRUM.apito(c, o, t, d16 * 0.8);
+    if (bar === 7 && st === 14) DRUM.apito(c, o, t, d16 * 0.8);
+  }
+  function fanfare(c, o, t) { // GOAL: a carnival burst
+    const d = 0.085;
+    ['G4', 'B4', 'D5', 'G5', 'B5', 'D6'].forEach((n, i) => osc(c, o, 'square', HZ(MIDI(n)), t + i * d, d * 1.1, 0.05));
+    osc(c, o, 'square', HZ(MIDI('G5')), t + 6 * d, d * 6, 0.05); osc(c, o, 'square', HZ(MIDI('B5')), t + 6 * d, d * 6, 0.035);
+    [0, 2, 3, 5, 6, 8, 10, 11].forEach((i) => DRUM.agogo(c, o, t + i * d, i % 2 === 0));
+    [0, 3, 6, 9].forEach((i) => DRUM.surdo(c, o, t + i * d, i % 6 === 0));
+    DRUM.apito(c, o, t + 6 * d, 0.45);
+  }
+  function sting(c, o, t) { // FULL TIME: a sad little cuica and a falling line
+    ['E5', 'D5', 'B4', 'G4'].forEach((n, i) => osc(c, o, 'triangle', HZ(MIDI(n)), t + i * 0.22, 0.3, 0.07));
+    DRUM.cuica(c, o, t + 0.95, 620, 330, 0.7); DRUM.cuica(c, o, t + 1.7, 520, 260, 0.9); DRUM.surdo(c, o, t + 0.9, true);
+  }
+  let musBus = null, mus = { on: false, step: 0, next: 0 };
+  function musicTick() { // keeps ~0.2 s of the theme scheduled ahead while a menu is up
+    if (!AC || !musBus || AC.state !== 'running') return;
+    const want = music && !replay && (/^(title|daily|heroes|replays|pause)$/.test(state) || (state === 'over' && stateT > 2.2));
+    musBus.gain.setTargetAtTime(want ? 1 : 0.0001, AC.currentTime, want ? 0.4 : 0.12);
+    if (!want) { mus.on = false; return; }
+    if (!mus.on) { mus.on = true; mus.step = 0; mus.next = AC.currentTime + 0.12; }
+    if (mus.next < AC.currentTime - 0.1) mus.next = AC.currentTime + 0.05; // after a stall: resume, don't machine-gun the backlog
+    const d16 = 60 / THEME.bpm / 4;
+    while (mus.next < AC.currentTime + 0.2) { themeStep(AC, musBus, mus.step, mus.next); mus.next += d16; mus.step++; }
+  }
+  const jingle = (fn) => { if (AC && music && AC.state === 'running') fn(AC, master, AC.currentTime + 0.02); };
+
   document.addEventListener('visibilitychange', () => { if (AC) (document.hidden ? AC.suspend() : AC.resume()); });
 
   // ------------------------------------------------------------------ game state
@@ -1095,7 +1183,7 @@
   const CHIPS = [['MOVE', 'move'], ['1000KM/H', 'mega'], ['MEGA CURVE', 'insane'], ['CHAOS', 'chaos'], ['SLOW-MO', 'slowmo']], CHIP_Y = 32, CHIP_W = 53;
   // saved progress: best score, furthest level, best stars per level, chosen ball. Anything unreadable starts fresh.
   let slowmo = false, slowSkip = false; // whole-shot slow motion (playback speed only; the outcome is identical)
-  let sound = 0, vibe = true; // sound: 0 ON, 1 LOW, 2 OFF; vibe: haptics on Android
+  let sound = 0, vibe = true, music = true; // sound: 0 ON, 1 LOW, 2 OFF; vibe: haptics on Android
   const VOL = [1, 0.35, 0], SOUND_NAME = ['ON', 'LOW', 'OFF'];
   const setVolume = () => { if (master) master.gain.value = 0.6 * VOL[sound]; };
   const buzz = (pattern) => { if (vibe && navigator.vibrate) try { navigator.vibrate(pattern); } catch (_) {} }; // ignored where unsupported
@@ -1112,11 +1200,11 @@
   try {
     const d = JSON.parse(localStorage.getItem('rfk-save') || 'null');
     if (d && typeof d === 'object') {
-      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); xp = Math.max(0, d.xp | 0); hero = clamp(d.hero | 0, 0, HEROES.length - 1); slowmo = d.slowmo === true; sound = clamp(d.sound === undefined ? 0 : d.sound | 0, 0, 2); vibe = d.vibe !== false; skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
+      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); xp = Math.max(0, d.xp | 0); hero = clamp(d.hero | 0, 0, HEROES.length - 1); slowmo = d.slowmo === true; sound = clamp(d.sound === undefined ? 0 : d.sound | 0, 0, 2); vibe = d.vibe !== false; music = d.music !== false; skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
       if (d.stars && typeof d.stars === 'object') for (const k in d.stars) starsBy[k] = clamp(d.stars[k] | 0, 0, 3);
     } else best = +localStorage.getItem('rfk-best') || 0; // pre-progression saves kept only the best score
   } catch (_) {}
-  const persist = () => { try { localStorage.setItem('rfk-save', JSON.stringify({ best, far, stars: starsBy, skin, xp, hero, slowmo, sound, vibe })); } catch (_) {} };
+  const persist = () => { try { localStorage.setItem('rfk-save', JSON.stringify({ best, far, stars: starsBy, skin, xp, hero, slowmo, sound, vibe, music })); } catch (_) {} };
   const totalStars = () => Object.keys(starsBy).reduce((a, k) => a + starsBy[k], 0);
   const unlocked = (i) => totalStars() >= BALL_SKINS[i].need;
   if (!unlocked(skin)) skin = 0;
@@ -1240,7 +1328,7 @@
     state = 'result'; stateT = 0;
     const r = world.result, e = world.ev, st = world.st;
     if (replay) { if (r === 'goal') { excite = 1; shake = 4; flash = 0.55; sfx('cheer'); burstConfetti(); } return; }
-    if (r === 'goal') buzz([40, 50, 90]);
+    if (r === 'goal') { buzz([40, 50, 90]); jingle(fanfare); }
     if (daily) { // the daily counts tries, not points: progression, stars and streaks are untouched
       dailyResult(r);
       if (r === 'goal') { excite = 1; shake = 4; flash = 0.55; sfx('cheer'); burstConfetti(); return showMsg('GOAL!', 'DAILY ' + daily.no + ' DONE IN ' + daily.shots.length + '/3', '#ffe040', 2.6, 5); }
@@ -1288,7 +1376,7 @@
   function advance(goal = world.result === 'goal') {
     if (daily) { if (dailyRec.done) { daily = null; state = 'daily'; fade = 0.6; } else { lives--; setupLevel(); } return; }
     if (goal) { level++; lives = maxLives(); spot = null; if (level > far) { far = level; persist(); } setupLevel(); } // 3 balls per level, refilled on every goal
-    else if (--lives <= 0) { state = 'over'; stateT = 0; msg = null; fade = 0.7; }
+    else if (--lives <= 0) { state = 'over'; stateT = 0; msg = null; fade = 0.7; jingle(sting); }
     else setupLevel();
   }
   function handle(evs) {
@@ -1340,6 +1428,7 @@
       else if (y >= 238 && y < 256) { daily = null; state = 'title'; fade = 0.6; } // MAIN MENU (a daily keeps the tries it used)
       else if (y >= 262 && y < 280) { sound = (sound + 1) % 3; setVolume(); persist(); sfx('stars1'); } // SOUND: ON / LOW / OFF
       else if (y >= 286 && y < 304) { vibe = !vibe; persist(); buzz(40); } // VIBRATION
+      else if (y >= 310 && y < 328) { music = !music; persist(); } // MUSIC
       return;
     }
     if (state === 'daily') {
@@ -1938,7 +2027,7 @@
       text('PAUSED', W / 2, 120, 5, '#ffffff', 0.5);
       text('LEVEL ' + (level + 1) + '   SCORE ' + score + '   ' + HEROES[hero].name, W / 2, 158, 1, '#ffe060', 0.5);
       btn('RESUME', 180, 28, true); btn('CHANGE PLAYER', 214, 18, false); btn('MAIN MENU', 238, 18, false);
-      btn('SOUND: ' + SOUND_NAME[sound], 262, 18, false); btn('VIBRATION: ' + (vibe ? 'ON' : 'OFF'), 286, 18, false);
+      btn('SOUND: ' + SOUND_NAME[sound], 262, 18, false); btn('VIBRATION: ' + (vibe ? 'ON' : 'OFF'), 286, 18, false); btn('MUSIC: ' + (music ? 'ON' : 'OFF'), 310, 18, false);
     }
     if (state === 'heroes') {
       ctx.fillStyle = 'rgba(6,8,24,0.88)'; ctx.fillRect(0, 0, W, H);
@@ -2078,6 +2167,7 @@
       }
     }
     updateCam(dt);
+    musicTick();
     if (AC && AC.state === 'running' && idle()) AC.suspend(); // woken by the next tap
     if (AC) {
       const b = world.ball, fl = state === 'flight' && !b.held, t = AC.currentTime;
@@ -2121,5 +2211,5 @@
     else return state !== 'title'; // mid-shot: ignore
     return true;
   };
-  window.__rfk = { Sim, get world() { return world; }, get state() { return state; }, get replay() { return replay; }, get lastKick() { return lastKick; }, get daily() { return daily; }, get dailyRec() { return dailyRec; }, shot }; // handle for automated checks
+  window.__rfk = { Sim, get world() { return world; }, get state() { return state; }, get replay() { return replay; }, get lastKick() { return lastKick; }, get daily() { return daily; }, preview: { themeStep, fanfare, sting, THEME }, get dailyRec() { return dailyRec; }, shot }; // handle for automated checks
 })();
