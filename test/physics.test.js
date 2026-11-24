@@ -235,3 +235,10 @@ test('goal and taker chaos: big/tiny goal, juggle, dribble and cheeky chip do wh
   const d = run(5, 1, 'DRIBBLE').w;
   assert.ok(d.keeper.state === 'down' && !d.ev.wall && !d.ev.save, 'round the wall, keeper sold a dummy');
 });
+
+test('commentary bag: every line once per round, never the same line twice in a row', () => {
+  const lines = ['A', 'B', 'C', 'D'], next = Sim.bag(lines), seen = [];
+  for (let i = 0; i < 40; i++) seen.push(next());
+  for (let r = 0; r < 10; r++) assert.deepEqual(seen.slice(r * 4, r * 4 + 4).sort(), lines, 'round ' + r + ' uses each line once');
+  assert.ok(seen.every((x, i) => i === 0 || x !== seen[i - 1]), 'no back-to-back repeats');
+});
