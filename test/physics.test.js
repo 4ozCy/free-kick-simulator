@@ -235,3 +235,18 @@ test('goal and taker chaos: big/tiny goal, juggle, dribble and cheeky chip do wh
   const d = run(5, 1, 'DRIBBLE').w;
   assert.ok(d.keeper.state === 'down' && !d.ev.wall && !d.ev.save, 'round the wall, keeper sold a dummy');
 });
+
+test('daily challenge: same kick for everyone on a date, numbered from day one, always scorable', () => {
+  const a = Sim.daily(2026, 11, 25), b = Sim.daily(2026, 11, 25), c = Sim.daily(2026, 11, 26);
+  assert.deepEqual(a, b, 'the same date always gives the same kick');
+  assert.equal(Sim.daily(2026, 11, 24).no, 1); assert.equal(a.no, 2); assert.equal(c.no, 3); assert.equal(Sim.daily(2027, 1, 1).no, 39);
+  assert.notDeepEqual(a.spot, c.spot, 'the next day is a different kick');
+  const shots = [];
+  for (let st = 0; st < 4; st++) for (let aim = -1; aim <= 1.001; aim += 0.1) for (const v of [-0.8, -0.4, 0]) for (const u of [-0.6, 0, 0.6]) shots.push({ style: st, aim, power: 0.75, u, v });
+  for (let i = 0; i < 30; i++) {
+    const day = new Date(Date.UTC(2026, 10, 25 + i)), d = Sim.daily(day.getUTCFullYear(), day.getUTCMonth() + 1, day.getUTCDate());
+    assert.ok(d.spot.dist >= 20 && d.spot.dist <= 32 && Math.abs(d.spot.ang) <= 30 && d.spot.wallN >= 3 && d.spot.wallN <= 5, 'sensible kick ' + d.no);
+    const scores = shots.some((s) => { const w = Sim.newWorld(d.n, d.seed, Object.assign({}, d.spot, { habit: 0 })); Sim.kick(w, s); for (let k = 0; k < 1440 && !w.result; k++) Sim.step(w, 1 / 240); return w.result === 'goal'; });
+    assert.ok(scores, 'daily #' + d.no + ' can be scored');
+  }
+});

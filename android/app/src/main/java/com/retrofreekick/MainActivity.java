@@ -1,15 +1,28 @@
 package com.retrofreekick;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 
 // Full-screen WebView hosting www/index.html from the APK assets.
 public class MainActivity extends Activity {
     private WebView web;
+
+    // the daily challenge's SHARE RESULT button: WebView has no share API, so the game calls RFKShare
+    private class Share {
+        @JavascriptInterface
+        public void share(String text) {
+            runOnUiThread(() -> {
+                Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text);
+                startActivity(Intent.createChooser(send, "Share your daily"));
+            });
+        }
+    }
 
     @Override
     protected void onCreate(Bundle state) {
@@ -22,6 +35,7 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         web.setBackgroundColor(0xFF000000);
         setContentView(web);
+        web.addJavascriptInterface(new Share(), "RFKShare");
         web.loadUrl("file:///android_asset/index.html");
     }
 

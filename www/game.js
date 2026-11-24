@@ -458,7 +458,16 @@
   const rankOf = (xp) => { let r = 0; while (r + 1 < RANKS.length && xp >= RANKS[r + 1].xp) r++; return r; };
   const xpFor = (nStars, streak, dist, chaos) => (10 + 10 * nStars + 5 * Math.min(streak, 5) + Math.max(0, Math.round(dist - 18))) * (chaos ? 10 : 1); // CHAOS mode pays 10x
 
-  const Sim = { applyChaos, CHAOS, setGoal, goal: () => [HW, GH], KN, RANKS, rankOf, xpFor, stars, multiplier, missBy, STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview, speed: speedOf };
+  // daily challenge: one free kick per calendar day, built from the date so every player gets the same one
+  const DAY0 = Date.UTC(2026, 10, 24); // daily #1 (launch day)
+  function dailyKick(y, m, d) { // local calendar date -> { key, no, n (keeper level), seed, spot }
+    const key = y * 10000 + m * 100 + d, r = mulberry32(key * 2654435761 % 4294967296);
+    const no = Math.round((Date.UTC(y, m - 1, d) - DAY0) / 864e5) + 1;
+    const dist = 20 + Math.round(r() * 120) / 10, ang = Math.round((r() - 0.5) * 60), wallN = 3 + Math.floor(r() * 3);
+    return { key, no, n: 6 + Math.floor(r() * 7), seed: (r() * 2147483647) | 0, spot: { dist, ang, wallN } };
+  }
+
+  const Sim = { daily: dailyKick, applyChaos, CHAOS, setGoal, goal: () => [HW, GH], KN, RANKS, rankOf, xpFor, stars, multiplier, missBy, STYLES, LEVELS, TARGETS, TARGET_R, HW, GH, ND, R, PR, makeLevel, newWorld, kick, step, preview, speed: speedOf };
   if (typeof module !== 'undefined' && module.exports) { module.exports = Sim; return; }
 
   // =================================================================== BROWSER
@@ -974,7 +983,7 @@
   }
   function setupAudio(Ctor) {
     AC = new Ctor();
-    master = AC.createGain(); master.gain.value = 0.6; master.connect(AC.destination);
+    master = AC.createGain(); master.gain.value = 0.6 * VOL[sound]; master.connect(AC.destination);
     noiseBuf = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate);
     const d = noiseBuf.getChannelData(0);
     let v = 0;
@@ -1068,6 +1077,10 @@
   const CHIPS = [['MOVE', 'move'], ['1000KM/H', 'mega'], ['MEGA CURVE', 'insane'], ['CHAOS', 'chaos'], ['SLOW-MO', 'slowmo']], CHIP_Y = 32, CHIP_W = 53;
   // saved progress: best score, furthest level, best stars per level, chosen ball. Anything unreadable starts fresh.
   let slowmo = false, slowSkip = false; // whole-shot slow motion (playback speed only; the outcome is identical)
+  let sound = 0, vibe = true; // sound: 0 ON, 1 LOW, 2 OFF; vibe: haptics on Android
+  const VOL = [1, 0.35, 0], SOUND_NAME = ['ON', 'LOW', 'OFF'];
+  const setVolume = () => { if (master) master.gain.value = 0.6 * VOL[sound]; };
+  const buzz = (pattern) => { if (vibe && navigator.vibrate) try { navigator.vibrate(pattern); } catch (_) {} }; // ignored where unsupported
   let far = 0, starsBy = {}, skin = 0, streak = 0, runCheat = false, cheatKick = false, xp = 0, runXp = 0;
   let shake = 0, timeScale = 1, trail = [], confetti = [];
   let parts = [], ripples = [], squash = 0, fade = 1, flash = 0, shownScore = 0, kCheer = false; // animation state
@@ -1081,11 +1094,11 @@
   try {
     const d = JSON.parse(localStorage.getItem('rfk-save') || 'null');
     if (d && typeof d === 'object') {
-      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); xp = Math.max(0, d.xp | 0); hero = clamp(d.hero | 0, 0, HEROES.length - 1); slowmo = d.slowmo === true; skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
+      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); xp = Math.max(0, d.xp | 0); hero = clamp(d.hero | 0, 0, HEROES.length - 1); slowmo = d.slowmo === true; sound = clamp(d.sound === undefined ? 0 : d.sound | 0, 0, 2); vibe = d.vibe !== false; skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
       if (d.stars && typeof d.stars === 'object') for (const k in d.stars) starsBy[k] = clamp(d.stars[k] | 0, 0, 3);
     } else best = +localStorage.getItem('rfk-best') || 0; // pre-progression saves kept only the best score
   } catch (_) {}
-  const persist = () => { try { localStorage.setItem('rfk-save', JSON.stringify({ best, far, stars: starsBy, skin, xp, hero, slowmo })); } catch (_) {} };
+  const persist = () => { try { localStorage.setItem('rfk-save', JSON.stringify({ best, far, stars: starsBy, skin, xp, hero, slowmo, sound, vibe })); } catch (_) {} };
   const totalStars = () => Object.keys(starsBy).reduce((a, k) => a + starsBy[k], 0);
   const unlocked = (i) => totalStars() >= BALL_SKINS[i].need;
   if (!unlocked(skin)) skin = 0;
@@ -1141,7 +1154,8 @@
     world = r.prevWorld; makeDefenders(); frameCam(); state = 'replays'; fade = 0.6;
   }
   function makeWorld() {
-    world = Sim.newWorld(level, seed, Object.assign({}, spot, { habit: habit() }));
+    world = daily ? Sim.newWorld(daily.n, seed, Object.assign({}, daily.spot, { habit: 0 })) // same kick for everyone, no habit tells
+      : Sim.newWorld(level, seed, Object.assign({}, spot, { habit: habit() }));
     if (rank() >= 5) { world.L.read = Math.max(0.1, world.L.read - 0.15); world.L.react += 0.05; } // MIND GAMES
     world.L.react += HEROES[hero].react || 0;
   }
@@ -1149,16 +1163,54 @@
   const sideName = () => (world.L.ang < -5 ? 'LEFT' : world.L.ang > 5 ? 'RIGHT' : 'CENTRE');
 
   function setupLevel() {
-    seed = (Math.random() * 2147483647) | 0; moving = false;
+    seed = daily ? daily.seed : (Math.random() * 2147483647) | 0; moving = false;
     makeWorld();
     makeDefenders(); frameCam(); nd.fill(0); nv.fill(0);
     state = 'aim'; levelT = 0; stateT = 0; acc = 0; whistled = false; ptr = null; trail = []; fade = 0.8; kCheer = false; parts = [];
+    if (daily) return showMsg('DAILY ' + daily.no, Math.round(world.L.dist) + 'M ' + sideName() + ' - ' + world.L.wallN + ' IN WALL', '#60e0ff', 1.8, 4, -1, 'TRY ' + (daily.shots.length + 1) + ' OF 3 - SAME KICK FOR EVERYONE TODAY');
     const h = habit();
     showMsg('LEVEL ' + (level + 1), Math.round(world.L.dist) + 'M ' + sideName() + ' - ' + world.L.wallN + ' IN WALL', '#ffffff', 1.8, 4, starsBy[level] || 0,
       Math.abs(h) >= 0.75 ? 'KEEPER IS READING YOUR ' + (h > 0 ? 'RIGHT' : 'LEFT') + ' SIDE - MIX IT UP' : '');
   }
   function openHeroes(from) { heroFrom = from; heroPage = Math.floor(hero / 9); state = 'heroes'; fade = 0.5; }
-  function startGame(n) { level = n; lives = maxLives(); score = 0; streak = 0; runCheat = false; runXp = 0; spot = null; recentGoals = []; applyPerks(); setupLevel(); }
+  function startGame(n) { daily = null; level = n; lives = maxLives(); score = 0; streak = 0; runCheat = false; runXp = 0; spot = null; recentGoals = []; applyPerks(); setupLevel(); }
+  // ---- daily challenge: progress is saved after every try, so quitting does not give you new tries
+  let daily = null, dailyRec = {};
+  try { const d = JSON.parse(localStorage.getItem('rfk-daily') || '{}'); if (d && typeof d === 'object') dailyRec = d; } catch (_) {}
+  const saveDaily = () => { try { localStorage.setItem('rfk-daily', JSON.stringify(dailyRec)); } catch (_) {} };
+  const todaySpec = () => { const d = new Date(); return Sim.daily(d.getFullYear(), d.getMonth() + 1, d.getDate()); };
+  const dailyShots = () => (Array.isArray(dailyRec.shots) ? dailyRec.shots.filter((x) => typeof x === 'string').slice(0, 3) : []);
+  const dailyDone = () => dailyRec.key === todaySpec().key && !!dailyRec.done;
+  function startDaily() {
+    const t = todaySpec();
+    if (dailyDone()) { state = 'daily'; fade = 0.6; return; }
+    if (dailyRec.key !== t.key) { // a new day: keep the streak only if yesterday was played
+      const y = new Date(); y.setDate(y.getDate() - 1);
+      const yk = y.getFullYear() * 10000 + (y.getMonth() + 1) * 100 + y.getDate();
+      dailyRec = { key: t.key, no: t.no, shots: [], done: false, streak: dailyRec.key === yk ? (dailyRec.streak | 0) : 0 };
+      saveDaily();
+    }
+    daily = Object.assign({ shots: dailyShots() }, t);
+    shot.mega = shot.insane = shot.chaos = false; spot = null; lives = 3 - daily.shots.length; streak = 0;
+    setupLevel();
+  }
+  function dailyResult(r) { // one try used; the run ends on a goal or after three tries
+    daily.shots.push(r); dailyRec.shots = daily.shots.slice();
+    if (r === 'goal' || daily.shots.length >= 3) { dailyRec.done = true; dailyRec.streak = (dailyRec.streak | 0) + 1; }
+    saveDaily();
+  }
+  const DAILY_EMOJI = { goal: '\u26BD', save: '\uD83E\uDDE4', wall: '\uD83E\uDDF1', post: '\uD83E\uDD45', over: '\uD83D\uDE80', wide: '\uD83D\uDCA8' };
+  function shareDaily() {
+    const sh = dailyShots(), won = sh[sh.length - 1] === 'goal';
+    const txt = 'RETRO FREE KICK - DAILY #' + dailyRec.no + '\n' + sh.map((x) => DAILY_EMOJI[x] || '\u2B1C').join('') + '\u2B1B'.repeat(3 - sh.length) + '  ' +
+      (won ? 'scored in ' + sh.length + '/3' : 'no goal today') + ((dailyRec.streak | 0) > 1 ? '  \uD83D\uDD25' + dailyRec.streak + ' day streak' : '') + '\nhttps://retrofreekick.site';
+    try {
+      if (window.RFKShare) { window.RFKShare.share(txt); return; } // Android app: the system share sheet
+      if (navigator.share) { navigator.share({ text: txt }).catch(() => {}); return; }
+      if (navigator.clipboard) { navigator.clipboard.writeText(txt).then(() => { hint = { t: 0, s: 'COPIED - PASTE IT ANYWHERE' }; }, () => {}); return; }
+    } catch (_) {}
+    hint = { t: 0, s: 'SHARING IS NOT AVAILABLE HERE' };
+  }
   function placeBall(dist, ang) { spot = { dist, ang }; makeWorld(); frameCam(); }
   function pickStyle(i) { shot.style = i; shot.u = STYLES[i].u * (HEROES[hero].foot === 'L' ? -1 : 1); shot.v = STYLES[i].v; hint = { t: 0, s: STYLES[i].name + ': ' + STYLES[i].desc }; }
   function doKick() {
@@ -1170,6 +1222,14 @@
     state = 'result'; stateT = 0;
     const r = world.result, e = world.ev, st = world.st;
     if (replay) { if (r === 'goal') { excite = 1; shake = 4; flash = 0.55; sfx('cheer'); burstConfetti(); } return; }
+    if (r === 'goal') buzz([40, 50, 90]);
+    if (daily) { // the daily counts tries, not points: progression, stars and streaks are untouched
+      dailyResult(r);
+      if (r === 'goal') { excite = 1; shake = 4; flash = 0.55; sfx('cheer'); burstConfetti(); return showMsg('GOAL!', 'DAILY ' + daily.no + ' DONE IN ' + daily.shots.length + '/3', '#ffe040', 2.6, 5); }
+      sfx('ooh');
+      const left = 3 - daily.shots.length;
+      return showMsg({ save: 'SAVED!', wall: 'BLOCKED!', post: 'POST!', over: 'OVER!', wide: 'WIDE!' }[r] || 'MISS!', left > 0 ? left + (left > 1 ? ' TRIES LEFT' : ' TRY LEFT') : 'NO TRIES LEFT - SEE YOU TOMORROW', '#ff6a5a', 2.6, 5);
+    }
     if (r === 'goal') {
       recentGoals = recentGoals.concat(Math.sign(e.goal.x) || 0).slice(-4);
       const base = 100 + Math.round((world.L.dist - 18) * 10) + (e.target ? 200 : 0) + (e.post ? 50 : 0) + (st.late || st.knuckle ? 50 : 0);
@@ -1208,6 +1268,7 @@
     for (let i = 0; i < 70; i++) confetti.push({ x: Math.random() * W, y: -Math.random() * 120, vx: (Math.random() - 0.5) * 40, vy: 30 + Math.random() * 50, c: cols[i % cols.length], ph: Math.random() * 6 });
   }
   function advance(goal = world.result === 'goal') {
+    if (daily) { if (dailyRec.done) { daily = null; state = 'daily'; fade = 0.6; } else { lives--; setupLevel(); } return; }
     if (goal) { level++; lives = maxLives(); spot = null; if (level > far) { far = level; persist(); } setupLevel(); } // 3 balls per level, refilled on every goal
     else if (--lives <= 0) { state = 'over'; stateT = 0; msg = null; fade = 0.7; }
     else setupLevel();
@@ -1215,9 +1276,9 @@
   function handle(evs) {
     for (const e of evs) {
       const b = world.ball;
-      if (e === 'post') { sfx('clank'); shake = 5; squash = 0.09; puff(b.x, b.y, b.z, 14, SPARK, 3, 2); }
-      else if (e === 'wall') { sfx('thud'); squash = 0.09; puff(b.x, b.y, b.z, 8, ['#d42a34', '#ffffff'], 1.5, 1.5); }
-      else if (e === 'save') { sfx('save'); squash = 0.09; puff(b.x, b.y, b.z, 12, ['#ffffff', '#8ad0ff', '#ffffff'], 2.5, 1.5); }
+      if (e === 'post') { buzz([25, 30, 25]); sfx('clank'); shake = 5; squash = 0.09; puff(b.x, b.y, b.z, 14, SPARK, 3, 2); }
+      else if (e === 'wall') { buzz(18); sfx('thud'); squash = 0.09; puff(b.x, b.y, b.z, 8, ['#d42a34', '#ffffff'], 1.5, 1.5); }
+      else if (e === 'save') { buzz(30); sfx('save'); squash = 0.09; puff(b.x, b.y, b.z, 12, ['#ffffff', '#8ad0ff', '#ffffff'], 2.5, 1.5); }
       else if (e === 'bounce') { sfx('bounce'); squash = 0.09; puff(b.x, 0.02, b.z, 6, DUST, 0.8, 1); }
       else if (e === 'chaos') { fxHit = { x: b.x, y: b.y, z: b.z, t: world.ft }; sfx('thud'); squash = 0.09; puff(b.x, b.y, b.z, 10, FX[world.chaos.name] && FX[world.chaos.name].dirt ? DUST : ['#ffffff', '#ffe060'], 1.8, 1.4); }
       else if (e === 'net') { sfx('net'); netHit(b.x, b.y, 9); shake = Math.max(shake, 2); puff(b.x, b.y, b.z, 8, ['#ffffff', '#d8d8e8'], 1.2, 0.5); }
@@ -1258,13 +1319,21 @@
     if (state === 'pause') {
       if (y >= 180 && y < 208) state = 'aim'; // RESUME
       else if (y >= 214 && y < 232) openHeroes('pause');
-      else if (y >= 238 && y < 256) { state = 'title'; fade = 0.6; } // MAIN MENU
+      else if (y >= 238 && y < 256) { daily = null; state = 'title'; fade = 0.6; } // MAIN MENU (a daily keeps the tries it used)
+      else if (y >= 262 && y < 280) { sound = (sound + 1) % 3; setVolume(); persist(); sfx('stars1'); } // SOUND: ON / LOW / OFF
+      else if (y >= 286 && y < 304) { vibe = !vibe; persist(); buzz(40); } // VIBRATION
+      return;
+    }
+    if (state === 'daily') {
+      if (y >= 250 && y < 278) shareDaily();
+      else if (y >= 286 && y < 304) { state = 'title'; fade = 0.6; }
       return;
     }
     if (state === 'title') {
       if (y >= 282 && y < 300) return startGame(0); // NEW GAME
       if (y >= 326 && y < 344) return openHeroes('title'); // PLAYER
       if (y >= 348 && y < 366) { state = 'replays'; fade = 0.6; return; } // REPLAYS
+      if (y >= 370 && y < 388) return startDaily(); // DAILY CHALLENGE
       if (y >= 304 && y < 322) { // cycle through unlocked balls
         do skin = (skin + 1) % BALL_SKINS.length; while (!unlocked(skin));
         useSkin(skin); persist(); return;
@@ -1277,7 +1346,7 @@
       return startGame(level); // RETRY this level
     }
     if (state === 'result') {
-      if (world.result === 'goal' && lastKick && y >= 300 && y < 322) {
+      if (!daily && world.result === 'goal' && lastKick && y >= 300 && y < 322) {
         if (x < 135) startReplay(lastKick, 'result');
         else if (!savedLast) { replays = [Object.assign({}, lastKick)].concat(replays).slice(0, 10); saveReplays(); savedLast = true; sfx('stars1'); } // newest first, 10 kept
         return;
@@ -1290,6 +1359,7 @@
     let mode = null;
     if (y >= CHIP_Y - 2 && y < CHIP_Y + 14) {
       const c = CHIPS[Math.floor((x - 3) / CHIP_W)];
+      if (c && daily && c[1] !== 'slowmo') { hint = { t: 0, s: 'NO CHEATS OR CHAOS IN THE DAILY' }; return; }
       if (c) { if (c[1] === 'move') moving = !moving; else if (c[1] === 'slowmo') { slowmo = !slowmo; persist(); } else shot[c[1]] = !shot[c[1]]; }
       return;
     }
@@ -1670,7 +1740,7 @@
   function hud() {
     const L = world.L, wx = L.wind.x, wz = L.wind.z;
     const X = wx * cam.r[0] + wz * cam.r[2], Zc = wx * cam.f[0] + wz * cam.f[2], l = Math.hypot(X, Zc) || 1, dx = Math.round((X / l) * 20) / 20, dy = Math.round((-Zc / l) * 20) / 20;
-    cached(HUD_L, [L.n, L.dist, L.ang, shownScore, best, lives, dx, dy, moving, shot.mega, shot.insane, shot.chaos, slowmo, streak, skin, xp].join(), 0, 56, () => drawHud(dx, dy));
+    cached(HUD_L, [daily ? 'd' + daily.no : L.n, L.dist, L.ang, shownScore, best, lives, dx, dy, moving, shot.mega, shot.insane, shot.chaos, slowmo, streak, skin, xp].join(), 0, 56, () => drawHud(dx, dy));
   }
   function drawHud(dx, dy) {
     CHIPS.forEach(([label, key], i) => {
@@ -1679,7 +1749,7 @@
       text(label, x + (CHIP_W - 2) / 2, CHIP_Y + 4, 1, on ? '#002010' : '#d0dcff', 0.5, on ? null : '#000000');
     });
     const L = world.L;
-    text('LV ' + (L.n + 1), 4, 4, 2);
+    text(daily ? 'DAILY ' + daily.no : 'LV ' + (L.n + 1), 4, 4, 2);
     text(Math.round(L.dist) + 'M ' + sideName(), 4, 17, 1, '#c8e8ff');
     bevel(W - 18, 2, 16, 14, '#2a3264', '#4a56a0', '#141834'); // pause / menu
     ctx.fillStyle = '#ffffff'; ctx.fillRect(W - 14, 5, 3, 8); ctx.fillRect(W - 9, 5, 3, 8);
@@ -1777,7 +1847,7 @@
     const btn = (label, y, h, hot) => { bevel(50, y, 170, h, hot ? '#c82828' : '#2a3264', hot ? '#ff9090' : '#4a56a0', hot ? '#801010' : '#141834'); text(label, W / 2, y + (h - 5 * (h > 20 ? 2 : 1)) / 2, h > 20 ? 2 : 1, '#ffffff', 0.5); };
     if (slowNow()) { text('SLOW-MO', W / 2, UI_Y - 44, 2, '#60e0ff', 0.5); text('TAP FOR FULL SPEED', W / 2, UI_Y - 30, 1, '#c8e8ff', 0.5); } // low down, out of the goal's way
     if (replay) { text('REPLAY', W / 2, 60, 2, Math.floor(tnow * 3) & 1 ? '#ff4040' : '#ffffff', 0.5); text('TAP TO SKIP', W / 2, 74, 1, '#c8e8ff', 0.5); }
-    if (state === 'result' && !replay && world.result === 'goal' && lastKick) { // replay / save this goal
+    if (state === 'result' && !replay && !daily && world.result === 'goal' && lastKick) { // replay / save this goal
       bevel(40, 300, 90, 22, '#c82828', '#ff9090', '#801010'); text('> REPLAY', 85, 308, 1, '#ffffff', 0.5);
       bevel(140, 300, 90, 22, savedLast ? '#108040' : '#2a3264', savedLast ? '#60ff90' : '#4a56a0', savedLast ? '#084020' : '#141834');
       text(savedLast ? 'SAVED!' : 'SAVE REPLAY', 185, 308, 1, '#ffffff', 0.5);
@@ -1801,6 +1871,7 @@
       text('PAUSED', W / 2, 120, 5, '#ffffff', 0.5);
       text('LEVEL ' + (level + 1) + '   SCORE ' + score + '   ' + HEROES[hero].name, W / 2, 158, 1, '#ffe060', 0.5);
       btn('RESUME', 180, 28, true); btn('CHANGE PLAYER', 214, 18, false); btn('MAIN MENU', 238, 18, false);
+      btn('SOUND: ' + SOUND_NAME[sound], 262, 18, false); btn('VIBRATION: ' + (vibe ? 'ON' : 'OFF'), 286, 18, false);
     }
     if (state === 'heroes') {
       ctx.fillStyle = 'rgba(6,8,24,0.88)'; ctx.fillRect(0, 0, W, H);
@@ -1825,6 +1896,23 @@
       btn(heroFrom === 'pause' ? 'BACK IN AS ' + h.name : 'PLAY AS ' + h.name, 372, 28, true);
       btn('BACK', 406, 18, false);
     }
+    if (state === 'daily') { // today's result, a countdown to the next one, and share
+      ctx.fillStyle = 'rgba(6,8,24,0.9)'; ctx.fillRect(0, 0, W, H);
+      const sh = dailyShots(), won = sh[sh.length - 1] === 'goal', COL = { goal: '#30d070', save: '#40a0ff', wall: '#d42a34', post: '#ffd020', over: '#a0a8c0', wide: '#a0a8c0' };
+      text('DAILY ' + (dailyRec.no || todaySpec().no), W / 2, 70, 4, '#60e0ff', 0.5);
+      for (let i = 0; i < 3; i++) {
+        const x = W / 2 - 66 + i * 46, r = sh[i];
+        bevel(x, 110, 40, 40, r ? COL[r] : '#1a1e40', '#ffffff', '#000000');
+        text(r ? { goal: 'GOAL', save: 'SAVE', wall: 'WALL', post: 'POST', over: 'OVER', wide: 'WIDE' }[r] : '-', x + 20, 127, 1, r === 'goal' || r === 'post' ? '#002010' : '#ffffff', 0.5, null);
+      }
+      text(won ? 'SCORED IN ' + sh.length + '/3' : 'NO GOAL TODAY', W / 2, 166, 3, won ? '#ffe040' : '#ff6a5a', 0.5);
+      if ((dailyRec.streak | 0) > 0) text((dailyRec.streak | 0) + ' DAY STREAK', W / 2, 192, 2, '#ff8030', 0.5);
+      const nx = new Date(); nx.setHours(24, 0, 0, 0); const mins = Math.max(0, Math.ceil((nx - new Date()) / 60000));
+      text('NEXT DAILY IN ' + Math.floor(mins / 60) + 'H ' + (mins % 60) + 'M', W / 2, 214, 1, '#c8e8ff', 0.5);
+      text('EVERYONE GETS THE SAME KICK. COMPARE WITH FRIENDS.', W / 2, 226, 1, '#a0a8c0', 0.5);
+      btn('SHARE RESULT', 250, 28, true); btn('MENU', 286, 18, false);
+      if (hint && hint.t < 2.2) text(hint.s, W / 2, 312, 1, '#ffe060', 0.5);
+    }
     if (state === 'title' || state === 'over') {
       ctx.fillStyle = 'rgba(6,8,24,0.72)'; ctx.fillRect(0, 0, W, H);
       if (state === 'title') {
@@ -1841,9 +1929,11 @@
         btn('BALL: ' + BALL_SKINS[skin].name + '  >', 304, 18, false);
         btn('PLAYER: ' + HEROES[hero].name + '  >', 326, 18, false);
         btn('REPLAYS (' + replays.length + ')', 348, 18, false);
-        text('SWIPE UP TO SHOOT. DRAG THE BALL', W / 2, 374, 1, '#c8e8ff', 0.5);
-        text('WIDGET TO PICK WHERE YOU STRIKE IT.', W / 2, 384, 1, '#c8e8ff', 0.5);
-        text('GOALS IN A ROW MULTIPLY YOUR POINTS.', W / 2, 396, 1, '#ffe060', 0.5);
+        const tsp = todaySpec(), dn = dailyDone();
+        bevel(50, 370, 170, 18, dn ? '#1a1e40' : '#108040', dn ? '#4a56a0' : '#60ff90', dn ? '#0a0c1c' : '#084020');
+        text(dn ? 'DAILY ' + tsp.no + ' DONE - SEE RESULT' : 'DAILY CHALLENGE ' + tsp.no + (dailyRec.key === tsp.key && dailyShots().length ? ' (' + (3 - dailyShots().length) + ' LEFT)' : ''), W / 2, 376, 1, '#ffffff', 0.5);
+        text('SWIPE UP TO SHOOT. GOALS IN A ROW', W / 2, 394, 1, '#c8e8ff', 0.5);
+        text('MULTIPLY YOUR POINTS.', W / 2, 404, 1, '#ffe060', 0.5);
       } else {
         text('FULL TIME', W / 2, 110, 5, '#ff6a5a', 0.5);
         text('SCORE ' + score, W / 2, 160, 3, '#ffe040', 0.5);
@@ -1872,7 +1962,7 @@
       }
       Sim.kick(world, replay ? replay.rec.shot : shot); state = 'flight';
       if (!replay && lastKick && world.chaos) lastKick.shot.chaosName = world.chaos.name;
-      stateT = 0; acc = 0; sfx('kick'); fxFired = false; fxHit = null;
+      stateT = 0; acc = 0; sfx('kick'); buzz(12); fxFired = false; fxHit = null;
       const fk = world.chaos && FX[world.chaos.name];
       if (fk && fk.atKick) {
         fxFired = true; sfx(fk.snd);
@@ -1936,7 +2026,7 @@
   makeDefenders();
   frameCam();
   // battery: a still screen nobody has touched for 20 s draws every 4th frame; any touch is back to full rate next frame
-  const idle = () => (state === 'title' || state === 'over' || state === 'aim' || state === 'heroes' || state === 'pause' || state === 'replays') && !ptr && tnow - lastTouch > 20 && excite < 0.05 && !confetti.length && !parts.length && !ripples.length && fade <= 0 && flash <= 0;
+  const idle = () => (state === 'title' || state === 'over' || state === 'daily' || state === 'aim' || state === 'heroes' || state === 'pause' || state === 'replays') && !ptr && tnow - lastTouch > 20 && excite < 0.05 && !confetti.length && !parts.length && !ripples.length && fade <= 0 && flash <= 0;
   let last = performance.now(), pending = 0, frameNo = 0;
   function frame(now) {
     requestAnimationFrame(frame); // first, so one bad frame can't freeze the game
@@ -1955,9 +2045,9 @@
     else if (state === 'aim') state = 'pause';
     else if (state === 'pause') state = 'aim';
     else if (state === 'heroes') { state = heroFrom; fade = 0.5; }
-    else if (state === 'over') { state = 'title'; fade = 0.6; }
+    else if (state === 'over' || state === 'daily') { state = 'title'; fade = 0.6; }
     else return state !== 'title'; // mid-shot: ignore
     return true;
   };
-  window.__rfk = { Sim, get world() { return world; }, get state() { return state; }, get replay() { return replay; }, get lastKick() { return lastKick; }, shot }; // handle for automated checks
+  window.__rfk = { Sim, get world() { return world; }, get state() { return state; }, get replay() { return replay; }, get lastKick() { return lastKick; }, get daily() { return daily; }, get dailyRec() { return dailyRec; }, shot }; // handle for automated checks
 })();
