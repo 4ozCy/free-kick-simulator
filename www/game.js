@@ -755,43 +755,65 @@
   // legendary takers: foot, stance, run-up (m back / m to the side, seconds, stride time), signature style + perk, kit and hair.
   // Stances stay within ~1.6 m back and 1 m aside: further and the camera, 4.6 m behind the ball, loses them or they block the view.
   const HEROES = [
-    { name: 'KNUCKLE KID', foot: 'R', back: 1.5, side: 0.8, runT: 0.5, stepT: 0.09, stance: 'stand', style: 3, kn: 0.4, run: 'MEASURED, STRAIGHT',
-      perk: 'KNUCKLE KING: WILDER KNUCKLEBALL', skin: '#704020', hair: '#151515', cut: 'short', shirt: '#f2f2f2', num: 8, numCol: '#2040b0', shorts: '#f2f2f2', socks: '#2040b0' },
-    { name: 'LEFT WIZARD', foot: 'L', back: 1.1, side: 0.8, runT: 0.38, stepT: 0.08, stance: 'stand', style: 1, cv: 0.15, guide: 3, run: 'SHORT AND QUICK',
-      perk: 'FINESSE: +15% CURVE, LONGER GUIDE', skin: '#e8b890', hair: '#4a2a14', cut: 'short', shirt: '#2a9d8f', num: 10, numCol: '#ffffff', shorts: '#1d3557', socks: '#2a9d8f' },
-    { name: 'IRON BOOT', foot: 'R', back: 1.6, side: 0.75, runT: 0.55, stepT: 0.11, stance: 'wide', style: 3, pw: 0.08, kn: 0.2, run: 'POWER STANCE, BIG STRIDES',
-      perk: 'TOMAHAWK: +8% POWER, KNUCKLE', skin: '#d8a070', hair: '#151515', cut: 'short', shirt: '#6a4c93', num: 7, numCol: '#f0d020', shorts: '#3a2a50', socks: '#6a4c93' },
-    { name: 'CURVE CAPTAIN', foot: 'R', back: 1.0, side: 1.0, runT: 0.5, stepT: 0.09, stance: 'stand', style: 1, cv: 0.25, run: 'WIDE ANGLE',
-      perk: 'BEND IT: +25% CURVE', skin: '#f0c8a0', hair: '#e8c860', cut: 'short', shirt: '#e76f51', num: 7, numCol: '#ffffff', shorts: '#264653', socks: '#e76f51' },
-    { name: 'ROCKET LEFT', foot: 'L', back: 1.6, side: 0.9, runT: 0.5, stepT: 0.07, stance: 'wide', style: 2, pw: 0.12, cv: 0.1, run: 'LONG AND FAST',
-      perk: 'BANANA BLAST: +12% POWER, +10% CURVE', skin: '#a86838', hair: '#a86838', cut: 'shaved', shirt: '#e9c46a', num: 6, numCol: '#2a6f4e', shorts: '#1d3557', socks: '#f2f2f2' },
-    { name: 'SAMBA SMILE', foot: 'R', back: 1.0, side: 0.7, runT: 0.35, stepT: 0.09, stance: 'stand', style: 1, cv: 0.05, react: 0.06, run: 'SHORT, RELAXED',
-      perk: 'TRICKSTER: KEEPER REACTS LATE', skin: '#8a5428', hair: '#101010', cut: 'curly', band: '#ffffff', shirt: '#118ab2', num: 10, numCol: '#ffd166', shorts: '#073b4c', socks: '#118ab2' },
-    { name: 'METRONOME', foot: 'R', back: 1.3, side: 1.0, runT: 0.45, stepT: 0.09, stance: 'hips', style: 1, guide: 6, run: 'CALM, ANGLED',
-      perk: 'METRONOME: MUCH LONGER AIM GUIDE', skin: '#f0c8a0', hair: '#a07a40', cut: 'short', shirt: '#4a4e69', num: 8, numCol: '#f2f2f2', shorts: '#22223b', socks: '#4a4e69' },
-    { name: 'DEEP PLAYMAKER', foot: 'R', back: 0.9, side: 0.9, runT: 0.55, stepT: 0.15, stance: 'hips', style: 0, tp: 0.35, run: 'A SLOW WALK-UP',
-      perk: 'DEEP DIP: EXTRA DIP', skin: '#e8b890', hair: '#2a1a10', cut: 'long', shirt: '#1d4e89', num: 21, numCol: '#ffffff', shorts: '#f2f2f2', socks: '#1d4e89' },
-    { name: 'ROCKET DEFENDER', foot: 'R', back: 1.6, side: 0.8, runT: 0.6, stepT: 0.08, stance: 'wide', style: 3, pw: 0.1, kn: 0.15, run: 'LONG, ON HIS TOES',
-      perk: 'ROCKET: +10% POWER, KNUCKLE', skin: '#d8a070', hair: '#3a2412', cut: 'afro', shirt: '#ffb703', num: 4, numCol: '#2a6f4e', shorts: '#023047', socks: '#f2f2f2' },
-    { name: 'STUTTER STAR', foot: 'R', back: 1.0, side: 0.8, runT: 0.42, stepT: 0.07, stance: 'stand', style: 1, cv: 0.1, react: 0.04, run: 'SHORT STUTTER STEPS',
-      perk: 'SAMBA: +10% CURVE, KEEPER REACTS LATE', skin: '#c88a5a', hair: '#e8c860', hair2: '#2a1a10', cut: 'mohawk', shirt: '#1a2a5a', centre: '#c81830', num: 10, numCol: '#ffffff', shorts: '#1a2a5a', socks: '#1a2a5a' },
-    { name: 'ELEGANCE', foot: 'R', back: 1.2, side: 0.9, runT: 0.48, stepT: 0.1, stance: 'stand', style: 1, cv: 0.08, guide: 4, run: 'UNHURRIED, ELEGANT',
-      perk: 'VIRTUOSO: +8% CURVE, LONGER GUIDE', skin: '#d8a878', hair: '#3a2a1a', cut: 'bald', shirt: '#7b2cbf', num: 10, numCol: '#ffffff', shorts: '#f2f2f2', socks: '#7b2cbf' },
-    { name: 'DRAGON BUN', foot: 'L', back: 1.6, side: 0.8, runT: 0.55, stepT: 0.1, stance: 'wide', style: 3, pw: 0.1, kn: 0.25, run: 'WIDE STANCE, LONG STRIDES',
-      perk: 'DRAGON: +10% POWER, WILD KNUCKLE', skin: '#f0c8a0', hair: '#4a2a14', cut: 'bun', shirt: '#2b2d42', num: 11, numCol: '#ffffff', shorts: '#2b2d42', socks: '#2b2d42' },
-    { name: 'STRIPED ARTIST', foot: 'R', back: 1.2, side: 0.9, runT: 0.45, stepT: 0.09, stance: 'hips', style: 1, cv: 0.2, run: 'SHORT, PRECISE',
-      perk: 'PRECISION ARC: +20% CURVE', skin: '#e8b890', hair: '#2a1a10', cut: 'short', shirt: '#f2f2f2', stripe: '#151515', num: 10, numCol: '#f0c020', shorts: '#f2f2f2', socks: '#f2f2f2' },
-    { name: 'HOOP MAGIC', foot: 'R', back: 1.0, side: 0.8, runT: 0.4, stepT: 0.08, stance: 'stand', style: 1, cv: 0.15, tp: 0.2, run: 'SHORT AND SHARP',
-      perk: 'HOOP MAGIC: +15% CURVE, EXTRA DIP', skin: '#e0b088', hair: '#1a1210', cut: 'curly', shirt: '#c81830', hoops: '#151515', num: 10, numCol: '#ffffff', shorts: '#f2f2f2', socks: '#151515' },
-    { name: 'PONYTAIL PRINCE', foot: 'R', back: 1.1, side: 0.9, runT: 0.45, stepT: 0.09, stance: 'stand', style: 1, cv: 0.12, guide: 3, run: 'LIGHT, BALANCED',
-      perk: 'PONYTAIL PRECISION: +12% CURVE, LONGER GUIDE', skin: '#e8b890', hair: '#1a1210', cut: 'ponytail', shirt: '#2a5ad0', num: 10, numCol: '#ffffff', shorts: '#f2f2f2', socks: '#2a5ad0' },
-    { name: 'THUNDER BOOT', foot: 'R', back: 1.6, side: 0.7, runT: 0.55, stepT: 0.1, stance: 'wide', style: 0, pw: 0.14, run: 'LONG, STRAIGHT, HEAVY',
-      perk: 'THUNDERBOLT: +14% POWER', skin: '#f0c8a0', hair: '#e8d080', cut: 'short', shirt: '#f77f00', num: 4, numCol: '#151515', shorts: '#f2f2f2', socks: '#f77f00' },
-    { name: 'WHIP WINGER', foot: 'R', back: 1.2, side: 1.0, runT: 0.45, stepT: 0.09, stance: 'stand', style: 1, cv: 0.18, guide: 2, run: 'ANGLED, QUICK',
-      perk: 'QUARTERBACK: +18% CURVE', skin: '#a86838', hair: '#151515', cut: 'short', shirt: '#d00000', num: 66, numCol: '#ffffff', shorts: '#d00000', socks: '#d00000' },
-    { name: 'HAMMER LEFT', foot: 'L', back: 1.5, side: 0.8, runT: 0.5, stepT: 0.08, stance: 'stand', style: 0, pw: 0.14, cv: 0.05, run: 'BRISK, STRAIGHT',
-      perk: 'LEFT CANNON: +14% POWER', skin: '#f0c8a0', hair: '#c8a860', cut: 'short', shirt: '#8ecae6', num: 11, numCol: '#1a2a5a', shorts: '#f2f2f2', socks: '#1a2a5a' },
+    { name: 'KNUCKLE KID', from: 'NG', num: 8, foot: 'R', back: 1.5, side: 0.8, runT: 0.5, stepT: 0.09, stance: 'stand', style: 3, kn: 0.4, run: 'MEASURED, STRAIGHT',
+      perk: 'KNUCKLE KING: WILDER KNUCKLEBALL', skin: '#704020', hair: '#151515', cut: 'short' },
+    { name: 'LEFT WIZARD', from: 'JP', num: 11, foot: 'L', back: 1.1, side: 0.8, runT: 0.38, stepT: 0.08, stance: 'stand', style: 1, cv: 0.15, guide: 3, run: 'SHORT AND QUICK',
+      perk: 'FINESSE: +15% CURVE, LONGER GUIDE', skin: '#e8b890', hair: '#4a2a14', cut: 'short' },
+    { name: 'IRON BOOT', from: 'PL', num: 7, foot: 'R', back: 1.6, side: 0.75, runT: 0.55, stepT: 0.11, stance: 'wide', style: 3, pw: 0.08, kn: 0.2, run: 'POWER STANCE, BIG STRIDES',
+      perk: 'TOMAHAWK: +8% POWER, KNUCKLE', skin: '#d8a070', hair: '#151515', cut: 'short' },
+    { name: 'CURVE CAPTAIN', from: 'SE', num: 16, foot: 'R', back: 1.0, side: 1.0, runT: 0.5, stepT: 0.09, stance: 'stand', style: 1, cv: 0.25, run: 'WIDE ANGLE',
+      perk: 'BEND IT: +25% CURVE', skin: '#f0c8a0', hair: '#e8c860', cut: 'short' },
+    { name: 'ROCKET LEFT', from: 'GH', num: 3, foot: 'L', back: 1.6, side: 0.9, runT: 0.5, stepT: 0.07, stance: 'wide', style: 2, pw: 0.12, cv: 0.1, run: 'LONG AND FAST',
+      perk: 'BANANA BLAST: +12% POWER, +10% CURVE', skin: '#a86838', hair: '#a86838', cut: 'shaved' },
+    { name: 'SAMBA SMILE', from: 'MX', num: 20, foot: 'R', back: 1.0, side: 0.7, runT: 0.35, stepT: 0.09, stance: 'stand', style: 1, cv: 0.05, react: 0.06, run: 'SHORT, RELAXED',
+      perk: 'TRICKSTER: KEEPER REACTS LATE', skin: '#8a5428', hair: '#101010', cut: 'curly', band: '#ffffff' },
+    { name: 'METRONOME', from: 'FI', num: 8, foot: 'R', back: 1.3, side: 1.0, runT: 0.45, stepT: 0.09, stance: 'hips', style: 1, guide: 6, run: 'CALM, ANGLED',
+      perk: 'METRONOME: MUCH LONGER AIM GUIDE', skin: '#f0c8a0', hair: '#a07a40', cut: 'short' },
+    { name: 'DEEP PLAYMAKER', from: 'FR', num: 14, foot: 'R', back: 0.9, side: 0.9, runT: 0.55, stepT: 0.15, stance: 'hips', style: 0, tp: 0.35, run: 'A SLOW WALK-UP',
+      perk: 'DEEP DIP: EXTRA DIP', skin: '#e8b890', hair: '#2a1a10', cut: 'long' },
+    { name: 'ROCKET DEFENDER', from: 'CO', num: 4, foot: 'R', back: 1.6, side: 0.8, runT: 0.6, stepT: 0.08, stance: 'wide', style: 3, pw: 0.1, kn: 0.15, run: 'LONG, ON HIS TOES',
+      perk: 'ROCKET: +10% POWER, KNUCKLE', skin: '#d8a070', hair: '#3a2412', cut: 'afro' },
+    { name: 'STUTTER STAR', from: 'BE', num: 17, foot: 'R', back: 1.0, side: 0.8, runT: 0.42, stepT: 0.07, stance: 'stand', style: 1, cv: 0.1, react: 0.04, run: 'SHORT STUTTER STEPS',
+      perk: 'SHIMMY: +10% CURVE, KEEPER REACTS LATE', skin: '#c88a5a', hair: '#e8c860', hair2: '#2a1a10', cut: 'mohawk' },
+    { name: 'ELEGANCE', from: 'PT', num: 8, foot: 'R', back: 1.2, side: 0.9, runT: 0.48, stepT: 0.1, stance: 'stand', style: 1, cv: 0.08, guide: 4, run: 'UNHURRIED, ELEGANT',
+      perk: 'VIRTUOSO: +8% CURVE, LONGER GUIDE', skin: '#d8a878', hair: '#3a2a1a', cut: 'bald' },
+    { name: 'DRAGON BUN', from: 'SC', num: 9, foot: 'L', back: 1.6, side: 0.8, runT: 0.55, stepT: 0.1, stance: 'wide', style: 3, pw: 0.1, kn: 0.25, run: 'WIDE STANCE, LONG STRIDES',
+      perk: 'DRAGON: +10% POWER, WILD KNUCKLE', skin: '#f0c8a0', hair: '#4a2a14', cut: 'bun' },
+    { name: 'STRIPED ARTIST', from: 'GR', num: 6, foot: 'R', back: 1.2, side: 0.9, runT: 0.45, stepT: 0.09, stance: 'hips', style: 1, cv: 0.2, run: 'SHORT, PRECISE',
+      perk: 'PRECISION ARC: +20% CURVE', skin: '#e8b890', hair: '#2a1a10', cut: 'short' },
+    { name: 'HOOP MAGIC', from: 'DE', num: 13, foot: 'R', back: 1.0, side: 0.8, runT: 0.4, stepT: 0.08, stance: 'stand', style: 1, cv: 0.15, tp: 0.2, run: 'SHORT AND SHARP',
+      perk: 'HOOP MAGIC: +15% CURVE, EXTRA DIP', skin: '#e0b088', hair: '#1a1210', cut: 'curly' },
+    { name: 'PONYTAIL PRINCE', from: 'NL', num: 18, foot: 'R', back: 1.1, side: 0.9, runT: 0.45, stepT: 0.09, stance: 'stand', style: 1, cv: 0.12, guide: 3, run: 'LIGHT, BALANCED',
+      perk: 'PONYTAIL PRECISION: +12% CURVE, LONGER GUIDE', skin: '#e8b890', hair: '#1a1210', cut: 'ponytail' },
+    { name: 'THUNDER BOOT', from: 'IT', num: 3, foot: 'R', back: 1.6, side: 0.7, runT: 0.55, stepT: 0.1, stance: 'wide', style: 0, pw: 0.14, run: 'LONG, STRAIGHT, HEAVY',
+      perk: 'THUNDERBOLT: +14% POWER', skin: '#f0c8a0', hair: '#e8d080', cut: 'short' },
+    { name: 'WHIP WINGER', from: 'MA', num: 22, foot: 'R', back: 1.2, side: 1.0, runT: 0.45, stepT: 0.09, stance: 'stand', style: 1, cv: 0.18, guide: 2, run: 'ANGLED, QUICK',
+      perk: 'QUARTERBACK: +18% CURVE', skin: '#a86838', hair: '#151515', cut: 'short' },
+    { name: 'HAMMER LEFT', from: 'AR', num: 15, foot: 'L', back: 1.5, side: 0.8, runT: 0.5, stepT: 0.08, stance: 'stand', style: 0, pw: 0.14, cv: 0.05, run: 'BRISK, STRAIGHT',
+      perk: 'LEFT CANNON: +14% POWER', skin: '#f0c8a0', hair: '#c8a860', cut: 'short' },
   ];
+  // where each hero is from: a pixel flag, and a kit in that country's colours (flags and colours only: no crests, badges or brands)
+  const NATION = { // flag: [layout, colours...], dot: a centre emblem; h/v = bands, x = Nordic cross, s = saltire, o = centre disc
+    NG: { name: 'NIGERIA', flag: ['v', '#008751', '#ffffff', '#008751'], kit: { shirt: '#008751', numCol: '#ffffff', shorts: '#ffffff', socks: '#008751' } },
+    JP: { name: 'JAPAN', flag: ['o', '#ffffff', '#bc002d'], kit: { shirt: '#ffffff', numCol: '#bc002d', shorts: '#ffffff', socks: '#bc002d' } },
+    PL: { name: 'POLAND', flag: ['h', '#ffffff', '#dc143c'], kit: { shirt: '#dc143c', numCol: '#ffffff', shorts: '#ffffff', socks: '#dc143c' } },
+    SE: { name: 'SWEDEN', flag: ['x', '#006aa7', '#fecc00'], kit: { shirt: '#fecc00', numCol: '#006aa7', shorts: '#006aa7', socks: '#fecc00' } },
+    GH: { name: 'GHANA', flag: ['h', '#ce1126', '#fcd116', '#006b3f'], dot: '#151515', kit: { shirt: '#fcd116', numCol: '#151515', shorts: '#006b3f', socks: '#ce1126' } },
+    MX: { name: 'MEXICO', flag: ['v', '#006847', '#ffffff', '#ce1126'], dot: '#8b5a2b', kit: { shirt: '#006847', numCol: '#ffffff', shorts: '#ffffff', socks: '#ce1126' } },
+    FI: { name: 'FINLAND', flag: ['x', '#ffffff', '#002f6c'], kit: { shirt: '#ffffff', numCol: '#002f6c', shorts: '#002f6c', socks: '#ffffff' } },
+    FR: { name: 'FRANCE', flag: ['v', '#0055a4', '#ffffff', '#ef4135'], kit: { shirt: '#0055a4', numCol: '#ffffff', shorts: '#ffffff', socks: '#ef4135' } },
+    CO: { name: 'COLOMBIA', flag: ['h', '#fcd116', '#fcd116', '#003893', '#ce1126'], kit: { shirt: '#fcd116', numCol: '#003893', shorts: '#003893', socks: '#ce1126' } },
+    BE: { name: 'BELGIUM', flag: ['v', '#151515', '#fdda24', '#ef3340'], kit: { shirt: '#ef3340', numCol: '#fdda24', shorts: '#151515', socks: '#ef3340' } },
+    PT: { name: 'PORTUGAL', flag: ['v', '#006600', '#ff0000', '#ff0000'], dot: '#ffcc00', kit: { shirt: '#c8102e', numCol: '#ffcc00', shorts: '#006600', socks: '#c8102e' } },
+    SC: { name: 'SCOTLAND', flag: ['s', '#005eb8', '#ffffff'], kit: { shirt: '#005eb8', numCol: '#ffffff', shorts: '#ffffff', socks: '#005eb8' } },
+    GR: { name: 'GREECE', flag: ['h', '#0d5eaf', '#ffffff', '#0d5eaf', '#ffffff', '#0d5eaf'], kit: { shirt: '#ffffff', stripe: '#0d5eaf', numCol: '#151515', shorts: '#ffffff', socks: '#0d5eaf' } },
+    DE: { name: 'GERMANY', flag: ['h', '#151515', '#dd0000', '#ffce00'], kit: { shirt: '#151515', hoops: '#dd0000', numCol: '#ffce00', shorts: '#151515', socks: '#ffce00' } },
+    NL: { name: 'NETHERLANDS', flag: ['h', '#ae1c28', '#ffffff', '#21468b'], kit: { shirt: '#f36c21', numCol: '#151515', shorts: '#ffffff', socks: '#f36c21' } },
+    IT: { name: 'ITALY', flag: ['v', '#009246', '#ffffff', '#ce2b37'], kit: { shirt: '#0064aa', numCol: '#ffffff', shorts: '#ffffff', socks: '#0064aa' } },
+    MA: { name: 'MOROCCO', flag: ['o', '#c1272d', '#006233'], kit: { shirt: '#c1272d', numCol: '#ffffff', shorts: '#ffffff', socks: '#006233' } },
+    AR: { name: 'ARGENTINA', flag: ['h', '#74acdf', '#ffffff', '#74acdf'], dot: '#f6b40e', kit: { shirt: '#74acdf', stripe: '#ffffff', numCol: '#151515', shorts: '#151515', socks: '#ffffff' } },
+  };
+  HEROES.forEach((h) => Object.assign(h, NATION[h.from].kit));
   function heroSprite(h, pose) { // seen from behind; left-footers are drawn mirrored, except the shirt number
     return mk(16, 33, (raw) => {
       const p = h.foot === 'L' ? (x, y, w, hh, c) => raw(16 - x - w, y, w, hh, c) : raw;
@@ -963,6 +985,17 @@
     g.fillStyle = col;
     CHARS.forEach((ch, i) => { for (let b = 0; b < 15; b++) if (FONT[ch][b] === '1') g.fillRect(i * 4 + (b % 3), (b / 3) | 0, 1, 1); });
     return (atlases[col] = c);
+  }
+  function drawFlag(code, x, y) { // 12x8 pixel flag with a dark outline
+    const [k, ...c] = NATION[code].flag, W = 12, H = 8, fill = (col, a, b, w, h) => { ctx.fillStyle = col; ctx.fillRect(x + a, y + b, w, h); };
+    fill('#000000', -1, -1, W + 2, H + 2);
+    if (k === 'h' || k === 'v') {
+      const n = c.length;
+      c.forEach((col, i) => k === 'h' ? fill(col, 0, Math.round(i * H / n), W, Math.round((i + 1) * H / n) - Math.round(i * H / n)) : fill(col, Math.round(i * W / n), 0, Math.round((i + 1) * W / n) - Math.round(i * W / n), H));
+      if (NATION[code].dot) fill(NATION[code].dot, 5, 3, 2, 2);
+    } else if (k === 'x') { fill(c[0], 0, 0, W, H); fill(c[1], 3, 0, 2, H); fill(c[1], 0, 3, W, 2); }
+    else if (k === 's') { fill(c[0], 0, 0, W, H); for (let i = 0; i < W; i++) { const j = Math.round(i * (H - 1) / (W - 1)); fill(c[1], i, j, 1, 1); fill(c[1], i, H - 1 - j, 1, 1); } }
+    else { fill(c[0], 0, 0, W, H); fill(c[1], 4, 2, 4, 4); }
   }
   function text(s, x, y, sc = 1, col = '#ffffff', align = 0, sh = '#000000') {
     s = String(s).toUpperCase();
@@ -2199,9 +2232,10 @@
         ctx.drawImage(cards[i], x + 25, y + 4 - (sel && Math.sin(tnow * 3) > 0 ? 2 : 0), 36, 70); // the picked one breathes
         text(h.name, x + 43, y + 77, 1, sel ? '#ffe060' : '#ffffff', 0.5);
         text(h.foot, x + 81, y + 4, 1, '#60e0ff', 1);
+        drawFlag(h.from, x + 5, y + 5);
       });
       const h = HEROES[hero];
-      text(h.name + ' - ' + (h.foot === 'L' ? 'LEFT' : 'RIGHT') + ' FOOT', W / 2, 310, 1, '#ffe060', 0.5);
+      text(h.name + ' - ' + NATION[h.from].name + ' - ' + (h.foot === 'L' ? 'LEFT' : 'RIGHT') + ' FOOT', W / 2, 310, 1, '#ffe060', 0.5);
       text('RUN-UP: ' + h.run, W / 2, 322, 1, '#c8e8ff', 0.5);
       text('SIGNATURE KICK: ' + STYLES[h.style].name, W / 2, 334, 1, '#c8e8ff', 0.5);
       text(h.perk, W / 2, 346, 1, '#60ff90', 0.5);
