@@ -986,7 +986,11 @@
   function setupAudio(Ctor) {
     AC = new Ctor();
     master = AC.createGain(); master.gain.value = 0.6 * VOL[sound]; master.connect(AC.destination);
-    musBus = AC.createGain(); musBus.gain.value = 0.0001; musBus.connect(master);
+    musBus = AC.createGain(); musBus.gain.value = 0.0001; // music: squeezed, turned up ~11 dB, peaks caught so it never clips
+    const comp = AC.createDynamicsCompressor(), mk = AC.createGain(), lim = AC.createDynamicsCompressor();
+    comp.threshold.value = -30; comp.knee.value = 6; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.15; mk.gain.value = 6;
+    lim.threshold.value = -3; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.08;
+    musBus.connect(comp).connect(mk).connect(lim).connect(master);
     noiseBuf = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate);
     const d = noiseBuf.getChannelData(0);
     let v = 0;
@@ -1154,17 +1158,17 @@
   const chordsOf = (list) => list.map((c) => c.split('|').map((h) => h.split(' ').map(MIDI)));
   const rootsOf = (list) => list.map((b) => b.split('|').map(MIDI));
   const JTRACKS = [
-    { name: 'BRAZIL BOUNCE', bpm: 140, chords: THEME.chords, bass: THEME.bass, lead: THEME.lead, chop: { 2: 'hey', 7: 'ah', 11: 'oh', 14: 'hey' } },
-    { name: 'COPACABANA NIGHTS', bpm: 128, style: 'baile', gain: 0.5, // bossa changes round the circle of fifths; the 808 plays the roots as written
+    { name: 'BRAZIL BOUNCE', bpm: 140, gain: 2, chords: THEME.chords, bass: THEME.bass, lead: THEME.lead, chop: { 2: 'hey', 7: 'ah', 11: 'oh', 14: 'hey' } },
+    { name: 'COPACABANA NIGHTS', bpm: 128, style: 'baile', gain: 0.3, // bossa changes round the circle of fifths; the 808 plays the roots as written
       chords: chordsOf(['A3 C4 E4 G4', 'D3 F3 A3 C4', 'G3 B3 D4 F4', 'C4 E4 G4 B4', 'F3 A3 C4 E4', 'B3 D4 F4 A4', 'E3 G#3 B3 D4', 'A3 C4 E4 G4']),
       bass: rootsOf(['A1', 'D2', 'G1', 'C2', 'F1', 'B1', 'E1', 'A1']),
       lead: ['E5:0:6 D5:6:2 C5:8:4 A4:12:4', 'F5:0:6 E5:6:2 D5:8:8', 'B4:0:4 D5:4:4 F5:8:4 G5:12:4', 'E5:0:10 D5:10:2 C5:12:4',
         'A5:0:6 G5:6:2 F5:8:4 E5:12:4', 'D5:0:6 F5:6:2 A5:8:8', 'G#5:0:4 F5:4:4 E5:8:4 D5:12:4', 'C5:0:4 A4:4:12'].map(notes) },
-    { name: 'TOP BINS', bpm: 140, style: 'bounce', // the melody is the bell arpeggio over the chords, plus a hook every 4 bars
+    { name: 'TOP BINS', bpm: 140, style: 'bounce', gain: 1.8, // the melody is the bell arpeggio over the chords, plus a hook every 4 bars
       chords: chordsOf(['B3 D4 F#4', 'G3 B3 D4', 'D4 F#4 A4', 'A3 C#4 E4', 'B3 D4 F#4', 'G3 B3 D4', 'E3 G3 B3|F#3 A#3 C#4', 'B3 D4 F#4']),
       bass: rootsOf(['B1', 'G1', 'D2', 'A1', 'B1', 'G1', 'E1|F#1', 'B1']),
       hook: { 3: notes('F#6:12:1 E6:13:1 D6:14:2'), 7: notes('B5:12:1 C#6:13:1 D6:14:1 F#6:15:1') } },
-    { name: 'LAST MINUTE WINNER', bpm: 152, style: 'anthem', gain: 0.6,
+    { name: 'LAST MINUTE WINNER', bpm: 152, style: 'anthem', gain: 0.4,
       chords: chordsOf(['E3 G3 B3', 'C3 E3 G3', 'G3 B3 D4', 'D3 F#3 A3', 'E3 G3 B3', 'C3 E3 G3', 'A3 C4 E4|B3 D#4 F#4', 'E3 G3 B3']),
       bass: rootsOf(['E1', 'C2', 'G1', 'D2', 'E1', 'C2', 'A1|B1', 'E1']),
       lead: ['E5:0:4 G5:4:4 B5:8:6 A5:14:2', 'G5:0:8 E5:8:4 D5:12:4', 'D5:0:4 G5:4:4 B5:8:8', 'A5:0:6 F#5:6:2 D5:8:8',
@@ -1272,10 +1276,8 @@
     sec = sec || loopSection(Math.floor(gs / 16));
     const ch = T.chords[bar][Math.min(half, T.chords[bar].length - 1)], bs = T.bass[bar][Math.min(half, T.bass[bar].length - 1)];
     const hot = sec === 'drop' || sec === 'fill' || sec === 'outro', calm = sec === 'build' || sec === 'roll' || sec === 'break';
-    if (T.style) { // gain: matches each track's loudness to BRAZIL BOUNCE
-      const g = c.createGain(); g.gain.value = T.gain || 1; g.connect(o);
-      return JSTYLE[T.style](c, g, T, { bar, st, d16, ch, bs, sec, hot, calm }, t);
-    }
+    const g = c.createGain(); g.gain.value = T.gain || 1; g.connect(o); o = g; // gain: evens out loudness between tracks
+    if (T.style) return JSTYLE[T.style](c, o, T, { bar, st, d16, ch, bs, sec, hot, calm }, t);
     if (hot) { // kick bounce + 808 sub
       if ((sec === 'fill' ? JC.fill : JC.kick).indexOf(st) >= 0) { KICK(c, o, t); osc(c, o, 'triangle', HZ(bs - 12), t, st === 0 || st === 8 ? d16 * 3 : d16 * 1.5, 0.22); }
     }
