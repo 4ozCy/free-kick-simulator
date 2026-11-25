@@ -771,7 +771,7 @@
       perk: 'METRONOME: MUCH LONGER AIM GUIDE', skin: '#f0c8a0', hair: '#a07a40', cut: 'short' },
     { name: 'DEEP PLAYMAKER', from: 'FR', num: 14, foot: 'R', back: 0.9, side: 0.9, runT: 0.55, stepT: 0.15, stance: 'hips', style: 0, tp: 0.35, run: 'A SLOW WALK-UP',
       perk: 'DEEP DIP: EXTRA DIP', skin: '#e8b890', hair: '#2a1a10', cut: 'long' },
-    { name: 'ROCKET DEFENDER', from: 'CO', num: 4, foot: 'R', back: 1.6, side: 0.8, runT: 0.6, stepT: 0.08, stance: 'wide', style: 3, pw: 0.1, kn: 0.15, run: 'LONG, ON HIS TOES',
+    { name: 'ROCKET DEFENDER', from: 'CO', num: 5, foot: 'R', back: 1.6, side: 0.8, runT: 0.6, stepT: 0.08, stance: 'wide', style: 3, pw: 0.1, kn: 0.15, run: 'LONG, ON HIS TOES',
       perk: 'ROCKET: +10% POWER, KNUCKLE', skin: '#d8a070', hair: '#3a2412', cut: 'afro' },
     { name: 'STUTTER STAR', from: 'BE', num: 17, foot: 'R', back: 1.0, side: 0.8, runT: 0.42, stepT: 0.07, stance: 'stand', style: 1, cv: 0.1, react: 0.04, run: 'SHORT STUTTER STEPS',
       perk: 'SHIMMY: +10% CURVE, KEEPER REACTS LATE', skin: '#c88a5a', hair: '#e8c860', hair2: '#2a1a10', cut: 'mohawk' },
