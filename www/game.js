@@ -1343,10 +1343,11 @@
     DRUM.cuica(c, o, t + 0.95, 620, 330, 0.7); DRUM.cuica(c, o, t + 1.7, 520, 260, 0.9); DRUM.surdo(c, o, t + 0.9, true);
   }
   let musBus = null, mus = { on: false, step: 0, next: 0, track: (Math.random() * 4) | 0 };
-  function musicTick() { // keeps ~0.2 s of the theme scheduled ahead while a menu is up
+  function musicTick() { // keeps ~0.2 s of the music scheduled ahead
     if (!AC || !musBus || AC.state !== 'running') return;
-    const want = music < 2 && !replay && (/^(title|daily|heroes|replays|pause)$/.test(state) || (state === 'over' && stateT > 2.2));
-    musBus.gain.setTargetAtTime(want ? 1 : 0.0001, AC.currentTime, want ? 0.4 : 0.12);
+    const want = music < 2 && !(state === 'over' && stateT <= 2.2); // everywhere, except the full-time sting gets a moment alone
+    const menu = !replay && /^(title|daily|heroes|replays|pause|over)$/.test(state); // in play it sits under the crowd and the kick
+    musBus.gain.setTargetAtTime(want ? (menu ? 1 : 0.4) : 0.0001, AC.currentTime, want ? 0.4 : 0.12);
     if (!want) { mus.on = false; return; }
     if (!mus.on) { mus.on = true; mus.step = 0; mus.next = AC.currentTime + 0.12; }
     if (mus.next < AC.currentTime - 0.1) mus.next = AC.currentTime + 0.05; // after a stall: resume, don't machine-gun the backlog
