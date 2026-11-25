@@ -2357,6 +2357,7 @@
     catch (err) { text('ERROR ' + String(err.message).slice(0, 60), 2, H - 8, 1, '#ff4040'); } // visible on-device for bug reports
   }
   requestAnimationFrame(frame);
+  initAudio(); // title music from launch where autoplay is allowed (the Android app); a browser starts it on the first tap
   window.__back = () => { // Android back: opens/closes the menu; only quits the app from the title screen
     if (replay) endReplay();
     else if (state === 'replays') { state = 'title'; fade = 0.6; }
