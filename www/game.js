@@ -2322,7 +2322,7 @@
     }
     updateCam(dt);
     musicTick();
-    if (AC && AC.state === 'running' && idle()) AC.suspend(); // woken by the next tap
+    if (AC && AC.state === 'running' && idle() && !mus.on) AC.suspend(); // woken by the next tap; never while the menu music plays
     if (AC) {
       const b = world.ball, fl = state === 'flight' && !b.held, t = AC.currentTime;
       const sp = fl ? Math.hypot(b.vx, b.vy, b.vz) : 0, spin = fl ? Math.min(1, Math.hypot(b.sx, b.sy, b.sz)) : 0;
