@@ -1072,7 +1072,12 @@
         tone('sawtooth', d < 1.5 ? 196 : 247, d < 1.5 ? 196 : 247, len, 0.012, d);
       });
     },
-    kick() { tone('sine', 180, 40, 0.2, 0.9); tone('square', 110, 50, 0.07, 0.25); burst(0.07, 0.5, 'lowpass', 1800); },
+    kick(p = 0.6) { // p: shot power 0..1; harder shots hit louder, brighter, with a low thump on top
+      tone('sine', 180, 40, 0.2, 0.55 + 0.5 * p); tone('square', 110, 50, 0.07, 0.25); burst(0.07, 0.3 + 0.4 * p, 'lowpass', 1200 + 1800 * p);
+      if (p > 0.7) tone('sine', 70, 30, 0.35, 1.5 * (p - 0.6));
+    },
+    boom() { tone('sine', 95, 32, 0.7, 0.9); burst(0.25, 0.4, 'lowpass', 300); }, // the net bulges: a bass hit under the crowd
+    combo(n) { const f = 660 * Math.pow(2, Math.min(n - 1, 12) / 12); tone('square', f, f, 0.09, 0.07, 1.05); tone('square', f * 1.5, f * 1.5, 0.16, 0.06, 1.14); }, // one note higher per goal in a row
     clank() { [620, 1480, 2330, 3410].forEach((f, i) => tone(i % 2 ? 'square' : 'triangle', f, f * 0.97, 0.7 - i * 0.12, 0.1)); burst(0.05, 0.3, 'highpass', 3000); },
     cheer() {
       burst(3.4, 0.35, 'bandpass', 1100, 0.5, 0, 0.25); burst(2.6, 0.18, 'bandpass', 2400, 0.8, 0.1, 0.3);
@@ -1121,7 +1126,7 @@
     tap() { tone('sine', 260, 110, 0.06, 0.25); },
     stars3() { [988, 1319, 1976].forEach((f, i) => tone('square', f, f, 0.14, 0.06, i * 0.25)); },
   };
-  const sfx = (n) => { if (AC) SFX[n](); };
+  const sfx = (n, a) => { if (AC) SFX[n](a); };
   // ------------------------------------------------------------------ music: an original chiptune samba (Brazil summer, 2014 feel)
   // Batucada (surdo, caixa, tamborim, agogo, ganza, apito), cavaquinho-style strums, a samba bass and a square-wave lead.
   // All melodies are written for this game. Everything is synthesized, so there are no audio files and no licences.
@@ -1379,7 +1384,7 @@
   const buzz = (pattern) => { if (vibe && navigator.vibrate) try { navigator.vibrate(pattern); } catch (_) {} }; // ignored where unsupported
   let far = 0, starsBy = {}, skin = 0, streak = 0, runCheat = false, cheatKick = false, xp = 0, runXp = 0;
   let shake = 0, timeScale = 1, trail = [], confetti = [];
-  let parts = [], ripples = [], squash = 0, fade = 1, flash = 0, shownScore = 0, kCheer = false; // animation state
+  let parts = [], ripples = [], squash = 0, fade = 1, flash = 0, shownScore = 0, kCheer = false, stop = 0; // animation state; stop: hit-stop seconds left
   function puff(x, y, z, n, cols, spd, up) { // little burst of pixels at a world point: dust, sparks, net threads
     for (let i = 0; i < n; i++) {
       const a = Math.random() * 6.283, v = spd * (0.4 + Math.random() * 0.6);
@@ -1539,7 +1544,7 @@
       }
       const m = Sim.multiplier(streak), pts = base * m, n = Sim.stars(world, lives === maxLives()), before = totalStars();
       const gain = Sim.xpFor(n, streak, world.L.dist, !!world.chaos), r0 = rank();
-      score += pts; streak++; xp += gain; runXp += gain; lastKick.pts = pts;
+      score += pts; streak++; xp += gain; runXp += gain; lastKick.pts = pts; sfx('combo', streak);
       const up = rank() > r0 ? Sim.RANKS[rank()] : null;
       if (up) { applyPerks(); setTimeout(() => sfx('stars3'), 1200); }
       if (score > best && !runCheat) best = score;
@@ -1577,7 +1582,7 @@
       else if (e === 'save') { buzz(30); sfx('save'); sfx('applause'); squash = 0.09; puff(b.x, b.y, b.z, 12, ['#ffffff', '#8ad0ff', '#ffffff'], 2.5, 1.5); }
       else if (e === 'bounce') { sfx('bounce'); squash = 0.09; puff(b.x, 0.02, b.z, 6, DUST, 0.8, 1); }
       else if (e === 'chaos') { fxHit = { x: b.x, y: b.y, z: b.z, t: world.ft }; sfx('thud'); squash = 0.09; puff(b.x, b.y, b.z, 10, FX[world.chaos.name] && FX[world.chaos.name].dirt ? DUST : ['#ffffff', '#ffe060'], 1.8, 1.4); }
-      else if (e === 'net') { sfx('net'); netHit(b.x, b.y, 9); shake = Math.max(shake, 2); puff(b.x, b.y, b.z, 8, ['#ffffff', '#d8d8e8'], 1.2, 0.5); }
+      else if (e === 'net') { sfx('net'); sfx('boom'); stop = Math.max(stop, 0.1); netHit(b.x, b.y, 9); shake = Math.max(shake, 2); puff(b.x, b.y, b.z, 8, ['#ffffff', '#d8d8e8'], 1.2, 0.5); }
       else if (e === 'sidenet') sfx('net');
       else if (e === 'touch') sfx('tap');
       else if (e === 'volley') { sfx('kick'); squash = 0.09; puff(b.x, b.y, b.z, 8, ['#ffffff', '#ffe060'], 1.2, 1); }
@@ -2310,7 +2315,8 @@
       }
       Sim.kick(world, replay ? replay.rec.shot : shot); state = 'flight';
       if (!replay && lastKick && world.chaos) lastKick.shot.chaosName = world.chaos.name;
-      stateT = 0; acc = 0; sfx('kick'); buzz(12); wallGroan = false; fxFired = false; fxHit = null;
+      const ks = replay ? replay.rec.shot : shot, kp = ks.mega ? 1 : ks.power;
+      stateT = 0; acc = 0; sfx('kick', kp); buzz(Math.round(10 + 30 * kp)); stop = 0.03 + 0.05 * kp; wallGroan = false; fxFired = false; fxHit = null; // hit-stop: freeze on contact
       const fk = world.chaos && FX[world.chaos.name];
       if (fk && fk.atKick) {
         fxFired = true; sfx(fk.snd);
@@ -2350,7 +2356,7 @@
         if (fe.dirt) puff(b.x, 0.05, b.z, 12, DUST, 1.2, 1.5);
       }
       if (fe && fe.sparkle && world.ft >= c.t0 && world.ft < c.t0 + (c.dur || 1) && Math.random() < 0.6) puff(b.x, b.y, b.z, 1, [fe.sparkle, '#ffffff'], 0.8, 0.6);
-      acc += dt * timeScale;
+      if (stop > 0) stop -= dt; else acc += dt * timeScale; // hit-stop holds the frame; the sim just resumes later, so the outcome is identical
       while (acc >= STEP) { acc -= STEP; handle(Sim.step(world, STEP)); netStep(STEP); }
       if (state === 'result') {
         if (replay) { if (stateT > 1.8) endReplay(); }
