@@ -52,12 +52,6 @@ jobs:
           # fixed file name so the website's releases/latest/download/retro-freekick.apk link keeps working
           cp "$APK" retro-freekick.apk
 
-      - name: Pack the PC version
-        run: | # the same game as the browser version, offline: unzip and open index.html
-          mkdir -p "pc/Retro Free Kick" && cp www/index.html www/game.js "pc/Retro Free Kick/"
-          printf 'Retro Free Kick for PC\r\n\r\nOpen index.html in Chrome, Edge or Firefox. No install needed.\r\nMouse to aim and shoot. Space = kick, Esc = menu.\r\nVolume: Esc, then SOUND and MUSIC VOLUME.\r\n' > "pc/Retro Free Kick/README.txt"
-          (cd pc && zip -qr ../retro-freekick-pc.zip "Retro Free Kick")
-
       # The APK is attached directly to the Release, so it downloads as a plain .apk, not a zip.
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -68,8 +62,31 @@ jobs:
             ${{ github.event.head_commit.message || 'Manual build' }}
 
             Android: download retro-freekick.apk below and install it.
-            PC: download retro-freekick-pc.zip, unzip it and open index.html (or play at https://retrofreekick.site/play/).
-          files: |
-            retro-freekick.apk
-            retro-freekick-pc.zip
+            Windows: download RetroFreeKick.exe below and double-click it. No install.
+            Anything else: play at https://retrofreekick.site/play/
+          files: retro-freekick.apk
           make_latest: true
+
+  # The Windows game: the same game in its own window, one .exe with nothing to install.
+  windows:
+    needs: build # the release exists by now; this adds the .exe to it
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build RetroFreeKick.exe
+        working-directory: desktop
+        shell: bash
+        run: |
+          mkdir -p app && cp ../www/index.html ../www/game.js app/
+          npm ci --no-audit --no-fund
+          npm version 1.0.${{ github.run_number }} --no-git-tag-version
+          npx electron-builder --win portable --publish never
+          cp dist/RetroFreeKick.exe ../RetroFreeKick.exe
+      - name: Add it to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          files: RetroFreeKick.exe

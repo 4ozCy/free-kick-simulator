@@ -1,0 +1,20 @@
+{
+  "name": "retro-free-kick",
+  "productName": "Retro Free Kick",
+  "version": "1.0.0",
+  "description": "A free 16-bit style pixel free-kick game",
+  "author": "Retro Free Kick",
+  "license": "MIT",
+  "main": "main.js",
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.retrofreekick.desktop",
+    "files": ["main.js", "app/**", "build/icon.png"],
+    "win": { "target": "portable", "icon": "build/icon.png" },
+    "portable": { "artifactName": "RetroFreeKick.exe" },
+    "linux": { "target": "dir", "icon": "build/icon.png" }
+  }
+}
