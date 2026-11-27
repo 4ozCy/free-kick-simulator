@@ -1009,7 +1009,7 @@
   }
 
   // ------------------------------------------------------------------ chiptune audio
-  let AC = null, master, noiseBuf, whoosh, crowd;
+  let AC = null, master, musOut, noiseBuf, whoosh, crowd;
   function initAudio() {
     if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
     const Ctor = window.AudioContext || window.webkitAudioContext;
@@ -1018,12 +1018,12 @@
   }
   function setupAudio(Ctor) {
     AC = new Ctor();
-    master = AC.createGain(); master.gain.value = 0.6 * VOL[sound]; master.connect(AC.destination);
+    master = AC.createGain(); master.connect(AC.destination); musOut = AC.createGain(); musOut.connect(AC.destination); setVolume(); // effects and music have their own volume
     musBus = AC.createGain(); musBus.gain.value = 0.0001; // music: squeezed, turned up ~11 dB, peaks caught so it never clips
     const comp = AC.createDynamicsCompressor(), mk = AC.createGain(), lim = AC.createDynamicsCompressor();
     comp.threshold.value = -30; comp.knee.value = 6; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.15; mk.gain.value = 6;
     lim.threshold.value = -3; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.08;
-    musBus.connect(comp).connect(mk).connect(lim).connect(master);
+    musBus.connect(comp).connect(mk).connect(lim).connect(musOut);
     noiseBuf = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate);
     const d = noiseBuf.getChannelData(0);
     let v = 0;
@@ -1377,10 +1377,9 @@
   const CHIPS = [['MOVE', 'move'], ['1000KM/H', 'mega'], ['MEGA CURVE', 'insane'], ['CHAOS', 'chaos'], ['SLOW-MO', 'slowmo']], CHIP_Y = 32, CHIP_W = 53;
   // saved progress: best score, furthest level, best stars per level, chosen ball. Anything unreadable starts fresh.
   let slowmo = false, slowSkip = false; // whole-shot slow motion (playback speed only; the outcome is identical)
-  let sound = 0, vibe = true, music = 1; // music: 0 SAMBA, 1 JERSEY CLUB (a playlist), 2 OFF
-  const MUSIC_NAME = ['SAMBA', 'JERSEY CLUB', 'OFF']; // sound: 0 ON, 1 LOW, 2 OFF; vibe: haptics on Android
-  const VOL = [1, 0.35, 0], SOUND_NAME = ['ON', 'LOW', 'OFF'];
-  const setVolume = () => { if (master) master.gain.value = 0.6 * VOL[sound]; };
+  let sfxVol = 10, musVol = 10, vibe = true, music = 1; // volumes 0-10; music: 0 SAMBA, 1 JERSEY CLUB (a playlist), 2 OFF; vibe: haptics on Android
+  const MUSIC_NAME = ['SAMBA', 'JERSEY CLUB', 'OFF'];
+  const setVolume = () => { if (master) { master.gain.value = 0.06 * sfxVol; musOut.gain.value = 0.06 * musVol; } };
   const buzz = (pattern) => { if (vibe && navigator.vibrate) try { navigator.vibrate(pattern); } catch (_) {} }; // ignored where unsupported
   let far = 0, starsBy = {}, skin = 0, streak = 0, runCheat = false, cheatKick = false, xp = 0, runXp = 0;
   let shake = 0, timeScale = 1, trail = [], confetti = [];
@@ -1395,11 +1394,11 @@
   try {
     const d = JSON.parse(localStorage.getItem('rfk-save') || 'null');
     if (d && typeof d === 'object') {
-      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); xp = Math.max(0, d.xp | 0); hero = clamp(d.hero | 0, 0, HEROES.length - 1); slowmo = d.slowmo === true; sound = clamp(d.sound === undefined ? 0 : d.sound | 0, 0, 2); vibe = d.vibe !== false; music = d.music === false ? 2 : clamp(typeof d.music === 'number' ? d.music | 0 : 1, 0, 2); skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
+      best = Math.max(0, +d.best || 0); far = Math.max(0, d.far | 0); xp = Math.max(0, d.xp | 0); hero = clamp(d.hero | 0, 0, HEROES.length - 1); slowmo = d.slowmo === true; const old = [10, 4, 0][clamp(d.sound | 0, 0, 2)]; /* older saves: SOUND ON / LOW / OFF */ sfxVol = d.sfxVol === undefined ? old : clamp(d.sfxVol | 0, 0, 10); musVol = d.musVol === undefined ? old : clamp(d.musVol | 0, 0, 10); vibe = d.vibe !== false; music = d.music === false ? 2 : clamp(typeof d.music === 'number' ? d.music | 0 : 1, 0, 2); skin = clamp(d.skin | 0, 0, BALL_SKINS.length - 1);
       if (d.stars && typeof d.stars === 'object') for (const k in d.stars) starsBy[k] = clamp(d.stars[k] | 0, 0, 3);
     } else best = +localStorage.getItem('rfk-best') || 0; // pre-progression saves kept only the best score
   } catch (_) {}
-  const persist = () => { try { localStorage.setItem('rfk-save', JSON.stringify({ best, far, stars: starsBy, skin, xp, hero, slowmo, sound, vibe, music })); } catch (_) {} };
+  const persist = () => { try { localStorage.setItem('rfk-save', JSON.stringify({ best, far, stars: starsBy, skin, xp, hero, slowmo, sfxVol, musVol, vibe, music })); } catch (_) {} };
   const totalStars = () => Object.keys(starsBy).reduce((a, k) => a + starsBy[k], 0);
   const unlocked = (i) => totalStars() >= BALL_SKINS[i].need;
   if (!unlocked(skin)) skin = 0;
@@ -1621,9 +1620,10 @@
       if (y >= 180 && y < 208) state = 'aim'; // RESUME
       else if (y >= 214 && y < 232) openHeroes('pause');
       else if (y >= 238 && y < 256) { daily = null; state = 'title'; fade = 0.6; } // MAIN MENU (a daily keeps the tries it used)
-      else if (y >= 262 && y < 280) { sound = (sound + 1) % 3; setVolume(); persist(); sfx('stars1'); } // SOUND: ON / LOW / OFF
+      else if (y >= 262 && y < 280) { sfxVol = clamp(sfxVol + (x < W / 2 ? -1 : 1), 0, 10); setVolume(); persist(); sfx('stars1'); } // SOUND: left half quieter, right half louder
       else if (y >= 286 && y < 304) { vibe = !vibe; persist(); buzz(40); } // VIBRATION
       else if (y >= 310 && y < 328) { music = (music + 1) % 3; mus.on = false; persist(); } // MUSIC: samba / jersey club / off
+      else if (y >= 334 && y < 352) { musVol = clamp(musVol + (x < W / 2 ? -1 : 1), 0, 10); setVolume(); persist(); } // MUSIC VOLUME
       return;
     }
     if (state === 'daily') {
@@ -2222,7 +2222,8 @@
       text('PAUSED', W / 2, 120, 5, '#ffffff', 0.5);
       text('LEVEL ' + (level + 1) + '   SCORE ' + score + '   ' + HEROES[hero].name, W / 2, 158, 1, '#ffe060', 0.5);
       btn('RESUME', 180, 28, true); btn('CHANGE PLAYER', 214, 18, false); btn('MAIN MENU', 238, 18, false);
-      btn('SOUND: ' + SOUND_NAME[sound], 262, 18, false); btn('VIBRATION: ' + (vibe ? 'ON' : 'OFF'), 286, 18, false); btn('MUSIC: ' + MUSIC_NAME[music], 310, 18, false);
+      btn('<   SOUND ' + sfxVol * 10 + '%   >', 262, 18, false); btn('VIBRATION: ' + (vibe ? 'ON' : 'OFF'), 286, 18, false); btn('MUSIC: ' + MUSIC_NAME[music], 310, 18, false);
+      btn('<   MUSIC VOLUME ' + musVol * 10 + '%   >', 334, 18, false);
     }
     if (state === 'heroes') {
       ctx.fillStyle = 'rgba(6,8,24,0.88)'; ctx.fillRect(0, 0, W, H);
@@ -2409,5 +2410,11 @@
     else return state !== 'title'; // mid-shot: ignore
     return true;
   };
+  addEventListener('keydown', (e) => { // PC: space or enter kicks, escape or P opens and closes the menu
+    if (e.repeat) return;
+    initAudio(); lastTouch = tnow;
+    if (e.key === ' ' || e.key === 'Enter') { if (state === 'aim') { e.preventDefault(); doKick(); } }
+    else if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') window.__back();
+  });
   window.__rfk = { Sim, get world() { return world; }, get state() { return state; }, get replay() { return replay; }, get lastKick() { return lastKick; }, get daily() { return daily; }, preview: { themeStep, jerseyStep, fanfare, sting, THEME, JTRACKS, DRUM }, get dailyRec() { return dailyRec; }, shot }; // handle for automated checks
 })();

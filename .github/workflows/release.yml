@@ -52,6 +52,12 @@ jobs:
           # fixed file name so the website's releases/latest/download/retro-freekick.apk link keeps working
           cp "$APK" retro-freekick.apk
 
+      - name: Pack the PC version
+        run: | # the same game as the browser version, offline: unzip and open index.html
+          mkdir -p "pc/Retro Free Kick" && cp www/index.html www/game.js "pc/Retro Free Kick/"
+          printf 'Retro Free Kick for PC\r\n\r\nOpen index.html in Chrome, Edge or Firefox. No install needed.\r\nMouse to aim and shoot. Space = kick, Esc = menu.\r\nVolume: Esc, then SOUND and MUSIC VOLUME.\r\n' > "pc/Retro Free Kick/README.txt"
+          (cd pc && zip -qr ../retro-freekick-pc.zip "Retro Free Kick")
+
       # The APK is attached directly to the Release, so it downloads as a plain .apk, not a zip.
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -61,6 +67,9 @@ jobs:
           body: |
             ${{ github.event.head_commit.message || 'Manual build' }}
 
-            Signed release build. Download the .apk below and install it.
-          files: retro-freekick.apk
+            Android: download retro-freekick.apk below and install it.
+            PC: download retro-freekick-pc.zip, unzip it and open index.html (or play at https://retrofreekick.site/play/).
+          files: |
+            retro-freekick.apk
+            retro-freekick-pc.zip
           make_latest: true
